@@ -13,7 +13,7 @@
 | 目录 | `~/anaconda3/envs/mmd` |
 | `conda-meta/history` 首行 | `# cmd: <conda>/conda create -n mmd python=3.8 -y`（2025-07-27） |
 | `pyvenv.cfg`（venv 标志） | 不存在 |
-| 目录结构 | `bin/ comdat-meta/ lib/python3.8/ …` 与 conda 环境一致 |
+| 目录结构 | `bin/`、`conda-meta/`、`lib/python3.8/` … 与 conda 环境一致 |
 
 **结论：`mmd` 是一个 Conda 环境（Python 3.8）**，不是 venv，也不是 Docker/其他形式。可通过 `conda activate mmd` 或直接调用 `~/anaconda3/envs/mmd/bin/python` 使用。
 
