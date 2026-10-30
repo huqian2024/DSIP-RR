@@ -97,26 +97,29 @@ additional-files = /…/sumo_rl_demo/types.typ.xml
 
 ## 5. 当前 Git 状态
 
-- 分支：`main`；本轮修改前工作树干净。
-- 历史提交（保留不动）：
+- 分支：`main`；本地仓库，**无 remote**（`git remote -v` 为空）。
+- 提交历史（全部保留，未 reset / rebase / drop）：
   - `e41abb1` chore: initialize DSIP-RR local repository
   - `4f1c7ab` docs(audits): record local git initialization and initial commit provenance
   - `7e1c116` docs(env): fix conda-meta path typo in mmd environment audit
   - `554cd0e` docs(audits): phase-2 scenario provenance, AIM baseline feasibility, and next-phase plan（**内容已作废**，仅作历史记录）
-- 本轮提交：`docs: enforce workspace boundary and reset research handoff`（hash 见 `git log -1`）。
-- 无 remote、未 push、未创建 GitHub 仓库。
-- 工作区内有一份**未跟踪**文件 `scenarios/original/routes.txt`（非本轮 Agent 创建，见 §3.1）；是否纳入版本控制需作者决定。
+  - `81340cf` docs: enforce workspace boundary and reset research handoff
+  - 本轮：`docs: finalize session handoff`（hash 见 `git log -1`）
+- 跟踪文件数：48（+ 本轮更新后 HANDOFF）。历史最大单文件：Overleaf 原始 zip ≈ 6.7 MB；无权重、无仿真输出。
+- 工作区内有一份**未跟踪**文件 `scenarios/original/routes.txt`（非 Agent 创建，按作者要求**保持原样、不提交**）。
+- 推送前安全检查结论（本轮执行）：全历史 diff 中未发现密码/token/私钥/API key 字符串（唯一命中是本仓库审计文档里对该风险的中文描述文字）；唯一含工作区外绝对路径的文件是 `scenarios/original/cross.sumocfg`（3 行 `/home/<user>/...`，属历史资产原样保留）。
 
 ---
 
 ## 6. 下一阶段尚未启动的任务
 
-1. FCFS baseline 的最小实现（**未启动**，需作者授权）。
-2. CCAM-DI 可行性确认（**未启动**，需作者授权，可能需要新环境）。
-3. 论文编译审计与页数核算（**未启动**；本机无 LaTeX，可按作者指示改用 Overleaf）。
-4. 补充实验（**未启动**；任何参数未确认前不得开始）。
+1. **下一唯一任务（已由作者指明，尚未执行）**：仅使用工作区内现有 XML，**新建一个相对路径的 SUMO 配置**（原 `cross.sumocfg` 不动），并完成**一次短时冒烟测试**，确认工作区内资产可被 SUMO 加载运行。
+2. FCFS baseline 实现（**未开始**，需在冒烟测试之后、由作者另行授权）。
+3. CCAM-DI 可行性确认（**未开始**，需作者授权，可能需要新环境）。
+4. 论文编译审计与页数核算（**未开始**；本机无 LaTeX，可按作者指示改用 Overleaf）。
+5. 补充实验（**未开始**；任何参数未确认前不得开始）。
 
-**明确声明：当前不再进行任何工作区外的数据调查。** 下一阶段是在**作者确认后**，仅使用 `DSIP-RR` 内的资产推进 FCFS baseline 的最小实现。
+**明确声明：当前不再进行任何工作区外的数据调查。** 上述第 1 项也只在工作区内、且不修改任何原始文件的前提下进行。
 
 ---
 
@@ -132,16 +135,68 @@ additional-files = /…/sumo_rl_demo/types.typ.xml
 | 6 | 任何工作区外的文件访问（含以前用过的旧脚本、CSV、MMD 源码目录） | 永久边界禁止，需逐次明确授权 |
 | 7 | 安装 LaTeX 工具链或改用 Overleaf 编译流程 | 环境变更 |
 | 8 | 修改论文正文、图表、参考文献 | 目前仅允许审计 |
-| 9 | 将 `routes.txt` 纳入 Git；或建立 remote / push | 版本控制决策 |
+| 9 | 将 `routes.txt` 纳入 Git | 版本控制决策（当前保持未跟踪） |
+| 10 | 安装新工具（如 `gh` CLI）或变更系统软件 | 环境变更，未获授权 |
+| 11 | 任何 push / 建立 remote（除作者本次已授权的一次私有仓库同步外） | 版本控制与对外发布决策 |
+
+> 例外（作者本次已明确授权，仅限一次）：访问 GitHub 完成身份验证、创建 **Private** 仓库 `DSIP-RR` 并 push。该授权的执行状态见 §9。
 
 ---
 
-## 8. 下一步（唯一建议动作）
+## 8. 下一步（唯一动作）
 
-请作者就以下两点给出指示，之后再动代码：
+**下一唯一任务**：仅使用工作区内现有 XML（`cross*.net.xml` / `tls*.net.xml` / `routes.rou.xml` / `types.typ.xml`），**新建**一个使用**相对路径**的 `.sumocfg`（原 `cross.sumocfg` 保持不动，因为它引用工作区外绝对路径且不得修改），并执行**一次短时冒烟测试**（例如 `sumo -c <新cfg> --end 1`），确认工作区内资产可被 SUMO 正确加载。
 
-1. 是否授权**新建**一个工作区内的 `.sumocfg`（新文件，原文件不动），以便用现有 `cross*.net.xml` + `routes.rou.xml` + `types.typ.xml` 在工作区内跑通一次最小 SUMO 冒烟测试；
-2. 论文所述 5 档密度、30 种子、0.1 s 步长：由作者直接给出参数，还是标记为 NOT VERIFIED 并在修订说明中回避。
+该动作**尚未执行**，等作者下一条指令后开始；不涉及论文修改、不生成新交通流、不启动 baseline。
 
-在得到答复前，本仓库不启动任何实验或代码开发。
+论文所述 5 档密度 / 30 种子 / 0.1 s 步长仍为 **NOT VERIFIED**，在作者给出参数前不作为任何实验输入。
+
+
+---
+
+## 9. 今日会话小结与 GitHub 同步状态
+
+### 9.1 今日已完成（均有工作区内文档记录）
+
+| 事项 | 产物 |
+|---|---|
+| 机器环境审计（OS/内核/CPU/内存/磁盘、GPU 驱动与 CUDA Toolkit 版本区分、SUMO、Python/conda、LaTeX 缺失、VS Code 解释器未配置、环境变量） | `docs/env/environment-audit.md` |
+| `mmd` 环境审计（Conda 环境、Python 3.8.20、torch 2.0.0/cu118、`cuda.is_available()=True`；**未做任何修改**） | `docs/env/mmd-environment-audit.md` |
+| 工作区资产盘点（工作区内文件清单、md5、引用关系、缺失项） | `docs/audits/workspace-inventory.md`（§1–§7 有效） |
+| 本地 Git 初始化、`.gitignore` 策略与提交前核查 | `docs/audits/git-initialization.md`；提交 `e41abb1`、`4f1c7ab`、`7e1c116` |
+| 工作区边界固化 + 越界调查结果作废 | `AGENTS.md` §0 与 §2 Provenance caveat；提交 `81340cf` |
+
+### 9.2 已作废
+
+见 §4（3 份报告全文、1 份报告 §8、1 份 §4、`third_party/README.md` 外部信息）。原文保留、未删除，Git 历史未改写。
+
+### 9.3 尚未开始
+
+**FCFS 与 CCAM-DI 均未开始实现**：无相关代码、无运行、无环境变更、无生成的车流文件。
+
+### 9.4 GitHub 私有仓库同步状态：**BLOCKED（未完成）**
+
+- 目标命令：`gh repo create DSIP-RR --private --source=. --remote=origin --push`
+- 实际检查结果：
+
+| 检查项 | 结果 |
+|---|---|
+| `gh --version` | **command not found**（`/snap/bin` 中亦无 `gh`） |
+| `gh auth status` | 无法执行（同上） |
+| `git remote -v` | 空 —— 无任何 remote |
+| `git config --get credential.helper` | 未配置（本地与全局均无）→ 无可用于非交互 HTTPS push 的既有凭据 |
+| VS Code CLI | 存在（`/snap/bin/code`）；`--list-extensions` 过滤 GitHub 后无输出 |
+
+- 结论：**未创建仓库、未添加 remote、未 push**。原因是 GitHub CLI 不可用，而"安装新工具/变更系统软件"不在本次授权范围内（`AGENTS.md` 与本次任务均要求不得自行安装）；同时本地没有既有 Git 凭据，无法在非交互环境下完成认证。
+- 明确未做的事：未安装 `gh`、未执行任何登录、未创建任何远程仓库、未添加 remote、未 push、未将任何内容公开、未改写 Git 历史。
+- 解除阻塞的三条可选路径（需作者选择其一并完成凭据交互）：
+
+| 选项 | 作者需要做的 | 之后 Agent 可做的 |
+|---|---|---|
+| A | 授权安装 GitHub CLI（如 `sudo snap install gh`）并本人完成 `gh auth login` | 执行 `gh repo create DSIP-RR --private --source=. --remote=origin --push` 并验证 |
+| B | 在 VS Code 中使用「Publish to GitHub」创建 **Private** 仓库 `DSIP-RR`（勾选 private） | 添加/校正 `origin`，建立 `main` 跟踪，push 并验证可见性 |
+| C | 在 github.com 手动创建 **Private** 仓库 `DSIP-RR` 并提供 URL | `git remote add origin <URL>`、`git push -u origin main` 并验证 |
+
+- Agent 不会索取、读取或输出任何访问令牌；认证必须由作者本人完成。
+- 当前状态对科研资产无影响：所有内容仍在本地 `main` 分支，历史完整（6 个提交）。
 
