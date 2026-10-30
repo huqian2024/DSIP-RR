@@ -200,3 +200,44 @@ additional-files = /…/sumo_rl_demo/types.typ.xml
 - Agent 不会索取、读取或输出任何访问令牌；认证必须由作者本人完成。
 - 当前状态对科研资产无影响：所有内容仍在本地 `main` 分支，历史完整（6 个提交）。
 
+
+### 9.5 重试记录（同日，作者要求 retry Git）
+
+重试结果：**仍然 BLOCKED**，比上次多确认了一条网络诊断信息。
+
+| 检查 | 本次结果 |
+|---|---|
+| `command -v gh` / `gh --version` | 仍 **NOT FOUND**（未安装） |
+| `gh auth status` | 无法执行（同上） |
+| `git remote -v` | 仍为空 |
+| `git config --get credential.helper` | 仍未配置（本地与全局均无） |
+| 直连 `https://github.com`（curl，25 s 超时） | **超时失败** —— 本 shell 无直连 |
+| 经本地代理 `http://127.0.0.1:7890` 访问 github.com | **HTTP 200（0.49 s）成功** |
+| `git ls-remote`（直连、非交互） | 挂起至超时被杀（exit 143） |
+
+结论：
+
+1. **网络不是根因**：本机有本地代理 `127.0.0.1:7890`，设置 `https_proxy=http://127.0.0.1:7890` 即可访问 GitHub。
+2. **真正的阻塞是认证与仓库创建工具缺失**：没有 `gh`，也没有任何 git 凭据（无 credential helper、无可用 token）。在既无仓库创建手段、又无凭据的情况下，`git push` 无法完成；而安装 `gh` 或配置凭据都属于未授权的系统/凭据变更，Agent 不得自行执行。
+3. 本轮**未做任何状态变更**：未安装工具、未登录、未添加 remote、未 push、未创建仓库；工作树仍只有那份未跟踪的 `scenarios/original/routes.txt`。
+
+最小解除路径（作者执行任一条，之后 Agent 可完成剩余步骤）：
+
+- **A**：作者本人执行（含代理）
+  ```
+  sudo snap install gh
+  https_proxy=http://127.0.0.1:7890 gh auth login      # 浏览器/设备码方式，由作者完成
+  ```
+  之后 Agent 执行：
+  ```
+  https_proxy=http://127.0.0.1:7890 gh repo create DSIP-RR --private --source=. --remote=origin --push
+  ```
+- **B**：作者在 VS Code「Publish to GitHub」创建 **Private** 仓库 `DSIP-RR`；
+- **C**：作者在 github.com 创建 **Private** 仓库并提供 URL；随后需作者完成一次凭据配置（PAT 或 SSH key），Agent 再执行：
+  ```
+  git remote add origin <URL>
+  https_proxy=http://127.0.0.1:7890 git push -u origin main
+  ```
+
+无论哪条路径，**认证必须由作者本人完成**；Agent 不索取、不读取、不输出任何 token 或密钥。
+
