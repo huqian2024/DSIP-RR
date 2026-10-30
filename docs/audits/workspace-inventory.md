@@ -140,3 +140,21 @@ DSIP-RR/
 - 现有资产足以支撑下一步：用 `cross2/3/4.net.xml` + `types.typ.xml` + 论文 Table I/式(1) 重新生成 5 个密度等级的 route 文件（需作者授权并留下生成脚本），在 SUMO 1.12 + TraCI 上跑 FCFS / CCAM-DI baseline。
 - 但在开始 baseline 之前必须补齐两件前置事项：LaTeX 编译工具链，以及 EIC 信/审稿意见归档。
 
+
+---
+
+## 8. Phase 2 更新（2026-10-30，覆盖本文档中的三条早期判断）
+
+> 本节由 `docs/audits/scenario-provenance.md` 的溯源结果修正，**以新文档为准**；本文档 §3.4、§6、§7 中的相应表述已被超越。
+
+| 早期判断（本文档上文） | Phase 2 核实结果 |
+|---|---|
+| "5 个密度等级的 route 文件缺失" | **从来不存在**。`auto*.py` 在每次运行前就地改写同一份 `routes.rou.xml`（`EXPERIMENT_PARAMS` → `number`/`departInterval`）。现存文件 = 3 车道 / 第 5 档 / 最后一次运行（flow seed 82339 起） |
+| "0.1 s 步长的真实 cfg 未找到" | 不需要：所有历史脚本都以 `--step-length 0.1` 命令行覆盖 cfg 中的 `step-length=1` |
+| "逐 seed 数据已丢失" | **部分存在**：`~/Downloads/sumo_rl_demo/results/` 有 2250 个逐 run 时序 CSV；其中方法 C 的 450 个是**合成生成**（`auto2.py`），不可作为证据 |
+| "30 个 run 的种子未确认" | 规则已确定：`SEED_START=81890`，逐实验 +1；且同一数字被同时用作 SUMO `--seed`、flow seed 基址与 MMD 规划器 `fix_random_seed` 的输入；不同方法脚本的 seed→(配置,run) 映射不同 |
+
+另外新发现：`~/Downloads/sumo_rl_demo/` 保存了当年的全部驱动脚本（`auto1/2/3/4.py`、`demo_1..4.py`、`colight_core.py`、`attentionlight_core.py`）——它们是**运行条件的第一手证据**，但**不是** DSIP 本体，也未被复制进本仓库。
+
+详细证据、量化对比与风险见 `docs/audits/scenario-provenance.md`；baseline 可行性见 `docs/audits/aim-baseline-feasibility.md`；下一步计划见 `docs/audits/next-phase-minimal-plan.md`。
+
