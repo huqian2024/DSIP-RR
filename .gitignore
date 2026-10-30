@@ -1,0 +1,100 @@
+# ============================================================
+# DSIP-RR 版本控制策略（Python / SUMO / LaTeX 科研项目）
+# 纳入版本控制：论文源与图件、SUMO 原始 XML 配置、实验脚本、审计文档。
+# 仅忽略：可再生的仿真/编译产物、虚拟环境、模型权重、私人审稿材料。
+# 明确**不忽略**（请勿添加下列类别的通配忽略）：
+#   *.tex *.bib *.cls *.sty   —— 论文源
+#   *.sumocfg *.net.xml *.rou.xml *.edg.xml *.nod.xml *.typ.xml *.add.xml
+#   *.pdf *.png *.eps *.svg *.jpg —— 论文图件与投稿 PDF
+# ============================================================
+
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+venv/
+/env/
+/envs/
+/.conda/
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+pip-wheel-metadata/
+
+# ---------- LaTeX 编译中间产物（生成的 .pdf 保留） ----------
+*.aux
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.synctex(busy)
+*.blg
+*.toc
+*.lof
+*.lot
+*.out
+*.log
+*.bcf
+*.run.xml
+*.xdv
+*.nav
+*.snm
+*.vrb
+*.idx
+*.ind
+*.ilg
+latex.out/
+/paper/revision/build/
+
+# ---------- 大型模型权重与可再生的中间数据 ----------
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+*.h5
+*.pkl
+*.joblib
+
+# ---------- SUMO / 实验可再生产物 ----------
+# 只忽略"重跑即可再生"的输出；输入配置（net/rou/typ/sumocfg）必须入库
+results/**/tripinfo*.xml
+results/**/summary*.xml
+results/**/queue*.xml
+results/**/vehroute*.xml
+results/**/persons*.xml
+results/**/fcd*.xml
+results/**/emission*.xml
+results/**/stdout*.txt
+results/**/stderr*.txt
+experiments/**/runs/
+**/*.fcd.xml
+**/*.fcd.xml.gz
+*.tripinfo.xml.gz
+*.netstate.xml
+*.netstate_dump.xml
+*.sumo.log
+/tmp_sumo/
+
+# ---------- 上游第三方代码 ----------
+# 上游仓库以"URL + 固定 commit"记录在文档中；源码目录不直接入库
+# （避免嵌套 .git 与仓库体积膨胀）。若确需入库，改用 submodule。
+third_party/*/
+!third_party/README.md
+
+# ---------- 私人材料 ----------
+# 未公开的编辑/审稿通信不进入版本库（见 AGENTS.md 第 8 节）
+paper/reviews/
+
+# ---------- 编辑器与系统 ----------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*~

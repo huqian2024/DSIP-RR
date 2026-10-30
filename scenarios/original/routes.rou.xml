@@ -1,0 +1,42 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<routes>
+    
+    <route edges="north2center center2south" id="north2south" />
+    <route edges="north2center center2east" id="north2east" />
+    <route edges="north2center center2west" id="north2west" />
+
+    
+    <route edges="south2center center2north" id="south2north" />
+    <route edges="south2center center2east" id="south2east" />
+    <route edges="south2center center2west" id="south2west" />
+
+    
+    <route edges="east2center center2west" id="east2west" />
+    <route edges="east2center center2north" id="east2north" />
+    <route edges="east2center center2south" id="east2south" />
+
+    
+    <route edges="west2center center2east" id="west2east" />
+    <route edges="west2center center2north" id="west2north" />
+    <route edges="west2center center2south" id="west2south" />
+
+    
+    <flow begin="0" departInterval="normal(10, 1.0)" departPos="random" departSpeed="random" end="1000" id="flow_ns" number="100" route="north2south" seed="82339" type="car" />
+    <flow begin="0" departInterval="normal(20, 1.0)" departPos="random" departSpeed="random" end="1000" id="flow_ne" number="50" route="north2east" seed="82340" type="car" />
+    <flow begin="0" departInterval="normal(20, 1.0)" departPos="random" departSpeed="random" end="1000" id="flow_nw" number="50" route="north2west" seed="82341" type="car" />
+
+    
+    <flow begin="0" departInterval="normal(10, 1.0)" departPos="random" departSpeed="random" end="1000" id="flow_sn" number="100" route="south2north" seed="82342" type="car" />
+    <flow begin="0" departInterval="normal(20, 1.0)" departPos="random" departSpeed="random" end="1000" id="flow_se" number="50" route="south2east" seed="82343" type="car" />
+    <flow begin="0" departInterval="normal(20, 1.0)" departPos="random" departSpeed="random" end="1000" id="flow_sw" number="50" route="south2west" seed="82344" type="car" />
+
+    
+    <flow begin="0" departInterval="normal(10, 1.0)" departPos="random" departSpeed="random" end="1000" id="flow_ew" number="100" route="east2west" seed="82345" type="car" />
+    <flow begin="0" departInterval="normal(20, 1.0)" departPos="random" departSpeed="random" end="1000" id="flow_en" number="50" route="east2north" seed="82346" type="car" />
+    <flow begin="0" departInterval="normal(20, 1.0)" departPos="random" departSpeed="random" end="1000" id="flow_es" number="50" route="east2south" seed="82347" type="car" />
+
+    
+    <flow begin="0" departInterval="normal(10, 1.0)" departPos="random" departSpeed="random" end="1000" id="flow_we" number="100" route="west2east" seed="82348" type="car" />
+    <flow begin="0" departInterval="normal(20, 1.0)" departPos="random" departSpeed="random" end="1000" id="flow_wn" number="50" route="west2north" seed="82349" type="car" />
+    <flow begin="0" departInterval="normal(20, 1.0)" departPos="random" departSpeed="random" end="1000" id="flow_ws" number="50" route="west2south" seed="82350" type="car" />
+</routes>

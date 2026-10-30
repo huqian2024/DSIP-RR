@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<configuration>
+    <input>
+        <net-file value="/home/qian/Downloads/sumo_rl_demo/cross3.net.xml" />
+        <route-files value="/home/qian/Downloads/sumo_rl_demo/routes.rou.xml" />
+        <additional-files value="/home/qian/Downloads/sumo_rl_demo/types.typ.xml" />
+    </input>
+    <time>
+        <begin value="0" />
+        <end value="1000" />
+        <step-length value="1" />
+    </time>
+</configuration>
