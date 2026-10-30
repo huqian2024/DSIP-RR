@@ -62,6 +62,8 @@ torch.cuda.get_device_name(0)  -> NVIDIA GeForce RTX 4060 Laptop GPU
 
 ## 4. 本机 MMD 源码定位
 
+> ⚠️ **本节作废（SUPERSEDED / NOT AUTHORITATIVE）**：下列源码路径与 commit 来自工作区**之外**的目录，按 `AGENTS.md` §0 不得再访问或引用。此处仅保留记录。
+
 仅检查合理已知位置，未做全盘递归搜索。结果：
 
 | 项目 | 观测值 |

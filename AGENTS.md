@@ -4,6 +4,26 @@
 >
 > This file governs coding agents working in this repository. Read it before making changes. If a task conflicts with these rules, stop and explain the conflict instead of silently proceeding.
 
+## 0. Workspace boundary and scope control (PERMANENT, overrides everything below)
+
+**The only permitted research scope is this workspace: the `DSIP-RR` repository root and the files inside it.** Another agent round previously went outside that boundary and produced reports from external directories. That work is void; these rules are now permanent and apply to every future agent and every future task.
+
+1. **Do not search, traverse, read, copy, or modify any research file outside this workspace.** Prohibited locations include (non-exhaustive) `~/Downloads`, `~/Documents`, `~/Desktop`, other old experiment directories, and any other Git repository.
+2. **Prohibited operations:** `find ..`, whole-disk or home-directory searches, cross-directory `grep`, absolute paths pointing outside the workspace, symlinks, scripts, or any other indirection used to reach outside files.
+3. **If an in-workspace file references an external path** (see `scenarios/original/cross.sumocfg`), **report the dependency only**. Do not open, stat, hash, or copy the external target.
+4. **Basic tooling is allowed only for in-workspace work.** `git`, `python`, `sumo`, LaTeX etc. may be run, but never as a vehicle to scan external research assets.
+5. **No network acquisition.** Do not download, clone, or browse remote code repositories unless the author explicitly authorizes it in that task.
+6. **If a task appears to require an outside resource, stop and ask the author**, stating what is needed and why. Never assume authorization.
+7. **Consequences for evidence.** Facts may only be asserted from (a) files inside this workspace, (b) the author's explicit statements, or (c) the submitted paper text inside `paper/submitted/`. Anything derived from outside assets must be dropped, not "verified", not "corrected", and not used to change the paper, experiments, metrics, seeds, densities, or research judgements.
+8. **These reports are SUPERSEDED / NOT AUTHORITATIVE** (kept only as a record; do not cite or build on them):
+   - `docs/audits/scenario-provenance.md` — entire document;
+   - `docs/audits/aim-baseline-feasibility.md` — entire document (upstream repo/commit/license details were gathered over the network and from outside material);
+   - `docs/audits/next-phase-minimal-plan.md` — entire document (its inputs were derived from the two documents above);
+   - `docs/audits/workspace-inventory.md` — §8 only;
+   - `third_party/README.md` — external paths and pinned commits;
+   - `docs/env/mmd-environment-audit.md` — §4 (external upstream source path).
+   The current authoritative asset state is `docs/HANDOFF.md`.
+
 ## 1. Mission and non-negotiable constraints
 
 The mission is to prepare a **traceable, scientifically defensible R&R resubmission**. The work includes auditing and editing the Overleaf LaTeX project, recovering SUMO scenarios, independently implementing or adapting two autonomous intersection management (AIM) baselines, and conducting narrowly scoped supplementary experiments.
@@ -34,6 +54,12 @@ The mission is to prepare a **traceable, scientifically defensible R&R resubmiss
 - DSIP's own work focuses on **road adaptation**, **dynamic traffic decision-making**, integration with SUMO/TraCI, repeated replanning, and step-wise execution.
 - The submitted manuscript reports experiments on isolated four-leg intersections with **4/6/8 lanes**, **five traffic-demand levels**, **left:straight:right = 1:2:1**, **SUMO step 0.1 s**, **planning update 0.4 s**, **1000 s simulation duration**, and **30 seeds per tested configuration**. These are descriptions from the submitted paper, not confirmation of recovered configurations.
 - The published/submitted historical results are **not to be numerically rewritten** based on newly reconstructed code. Distinguish historical results from new supplementary results.
+
+### Provenance caveat (added 2026-10-30)
+
+- The statements above about retained SUMO files and known seeds are **author-provided claims**, not facts verified from inside this workspace. The workspace presently contains one `.sumocfg`, seven `.net.xml`, exactly one `.rou.xml`, one vehicle-type file and the `netconvert` inputs; see `docs/HANDOFF.md` for the authoritative asset table.
+- **No density matrix, seed list, step-length override, metric computation, or `net`↔lane-count mapping may be inferred from outside assets or from earlier audit rounds.** Those earlier derivations are void (Section 0.8).
+- If a research decision needs such a parameter, treat it as **NOT VERIFIED** and ask the author instead of reconstructing it.
 
 ### Agreed supplementary work
 
