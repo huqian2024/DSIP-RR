@@ -241,3 +241,37 @@ additional-files = /…/sumo_rl_demo/types.typ.xml
 
 无论哪条路径，**认证必须由作者本人完成**；Agent 不索取、不读取、不输出任何 token 或密钥。
 
+
+### 9.6 仓库地址已提供，但可见性为 **PUBLIC** —— push 已中止（安全阻断）
+
+作者于 2026-10-30 提供目标地址 `https://github.com/huqian2024/DSIP-RR.git`。推送前按流程核实可见性，结果如下（经本地代理 `127.0.0.1:7890` 调用 GitHub API，未使用任何凭据）：
+
+| 字段 | 值 |
+|---|---|
+| `full_name` | `huqian2024/DSIP-RR` |
+| `private` | **false** |
+| `visibility` | **public** ← 与任务要求的 Private 不符 |
+| `size` | 0 KB |
+| `default_branch` | `main` |
+| `created_at` / `pushed_at` | 2026-10-30T09:58:14Z / 09:58:15Z |
+| forks / watchers | 0 / 0 |
+| `GET /commits` | HTTP 409（"Git Repository is empty"） |
+
+判定与处置：
+
+1. 仓库为**空仓库**，尚未推送任何内容，因此**目前没有发生泄露**。
+2. 按任务约束「必须 Private、不得创建 Public 仓库」与「发现冲突即停止并报告」，**本轮中止 push**：未添加 `origin`、未 push、未改动远端、未改写本地历史。
+3. 若此时推送，将公开暴露：未发表论文 LaTeX 源（`main.tex`、`refs.bib`）、8 张图件与 5 张作者肖像、Overleaf 导出 zip、稿件编号与审稿相关记录、机器环境审计（含硬件/驱动版本）、以及 `cross.sumocfg` 中的本地绝对路径（含用户名）。
+
+解除该阻断（需作者操作）：
+
+1. GitHub → 该仓库 → **Settings → General → Danger Zone → Change repository visibility → Make private**（按提示确认，可能需要 2FA）；
+2. 完成后告知 Agent 重试。Agent 将先用 API 复核 `private == true`，再执行：
+   ```
+   git remote add origin https://github.com/huqian2024/DSIP-RR.git
+   https_proxy=http://127.0.0.1:7890 git push -u origin main
+   ```
+3. 另需注意：本地仍**没有任何 Git 凭据**（`credential.helper` 未配置）。即使仓库转为私有，`git push` 仍需作者本人完成一次认证（`gh auth login`、PAT 存入 credential store，或配置 SSH key）。Agent 不会索取或输出 token。
+
+在上述两点完成前，仓库保持"本地有版本、远端为空"的状态。
+
