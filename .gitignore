@@ -81,6 +81,17 @@ experiments/**/runs/
 *.sumo.log
 /tmp_sumo/
 
+# ---------- 实验结果输出（全部可由脚本再生，见 docs/HANDOFF.md §10.3） ----------
+# 冒烟测试、Shadow 运行、后续 baseline 实验写入 results/ 的产物一律不入库；
+# 若确需提交某个精挑的摘要文件，请用 `git add -f <file>` 并在此处加例外规则。
+results/**/*.csv
+results/**/*.json
+results/**/*.txt
+results/**/*.xml
+results/**/*.parquet
+results/**/*.log
+!results/.gitkeep
+
 # ---------- 上游第三方代码 ----------
 # 上游仓库以"URL + 固定 commit"记录在文档中；源码目录不直接入库
 # （避免嵌套 .git 与仓库体积膨胀）。若确需入库，改用 submodule。

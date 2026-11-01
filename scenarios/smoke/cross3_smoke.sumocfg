@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!--
+  DSIP-RR smoke-test configuration (Task 02, 2026-11-01)
+
+  Purpose : verify that the in-workspace SUMO assets can be loaded and stepped
+            by the local SUMO binary. This is NOT a reproduction of any
+            experiment reported in the manuscript.
+
+  Differences with respect to scenarios/original/cross.sumocfg:
+    1. the three input paths are workspace-relative instead of absolute paths
+       pointing outside this repository;
+    2. <time><end> is 100 s instead of 1000 s (short smoke test);
+    3. <step-length> is kept at the original value of 1 s.
+
+  Unchanged: road network (cross3.net.xml), traffic demand (routes.rou.xml),
+  vehicle type (types.typ.xml). The files in scenarios/original/ are read-only
+  inputs for this test and are not modified.
+-->
+<configuration>
+    <input>
+        <net-file value="../original/cross3.net.xml" />
+        <route-files value="../original/routes.rou.xml" />
+        <additional-files value="../original/types.typ.xml" />
+    </input>
+    <time>
+        <begin value="0" />
+        <end value="100" />
+        <step-length value="1" />
+    </time>
+</configuration>

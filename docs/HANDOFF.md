@@ -1,7 +1,22 @@
 # HANDOFF — DSIP-RR 当前状态交接
 
-- 更新日期：2026-10-30
+- 更新日期：**2026-11-01**（Task 05 checkpoint；Task 01–04 的完成记录见 §10）
 - 本文档是**当前唯一权威的资产与边界说明**。与它冲突的旧报告一律作废（见 §4）。
+
+> ## 🚩 当前状态（2026-11-01）
+>
+> | 事项 | 状态 |
+> |---|---|
+> | SUMO 环境（工作区内相对路径场景） | **已验证可运行**（Task 02/03/04 三次运行一致） |
+> | TraCI 通路（traci 1.24.0 ↔ SUMO 1.12.0，协议 v20） | **已验证（仅读取）** |
+> | FCFS **Shadow Mode**（只算决策、不控制车辆） | **已完成**（`baselines/fcfs_sumo/`） |
+> | FCFS **Baseline 复现** | **❌ 未完成**（尚无任何车辆控制代码；无性能实验） |
+> | CCAM-DI / DSIP 复现 | **❌ 未开始**（无源码、无权重） |
+> | 论文 LaTeX 审计（AGENTS §4） | **❌ 未开始**（无投稿 PDF、无审稿意见、本机无 LaTeX） |
+>
+> **两条红线（必须随结果一起引用）**
+> 1. **当前仅完成 Shadow Mode，没有完成 FCFS Baseline 复现。** Shadow 的"决策与实际行为冲突"是**未施加控制**的必然诊断，**不是碰撞，也不是 FCFS 失效**。
+> 2. **冲突矩阵是 provisional**（几何推导 + 无 `<request>/foes` 的网络），**不得当作经过验证的安全判据**；`collision.check-junctions` 未启用，"无碰撞告警"不构成安全证据。
 
 ---
 
@@ -111,15 +126,20 @@ additional-files = /…/sumo_rl_demo/types.typ.xml
 
 ---
 
-## 6. 下一阶段尚未启动的任务
+## 6. 任务状态（2026-11-01 更新，详见 §10）
 
-1. **下一唯一任务（已由作者指明，尚未执行）**：仅使用工作区内现有 XML，**新建一个相对路径的 SUMO 配置**（原 `cross.sumocfg` 不动），并完成**一次短时冒烟测试**，确认工作区内资产可被 SUMO 加载运行。
-2. FCFS baseline 实现（**未开始**，需在冒烟测试之后、由作者另行授权）。
-3. CCAM-DI 可行性确认（**未开始**，需作者授权，可能需要新环境）。
-4. 论文编译审计与页数核算（**未开始**；本机无 LaTeX，可按作者指示改用 Overleaf）。
-5. 补充实验（**未开始**；任何参数未确认前不得开始）。
+| # | 任务 | 状态 |
+|---|---|---|
+| 1 | 工作区内相对路径 SUMO 配置 + 冒烟测试 | ✅ **已完成**（Task 02）：`scenarios/smoke/cross3_smoke.sumocfg`，退出码 0、80 车出发、72 抵达、0 碰撞告警、0 传送 |
+| 2 | TraCI 兼容性验证 | ✅ **已完成**（Task 03）：`traci 1.24.0 ↔ SUMO 1.12.0`，协议 v20，读取接口全通 |
+| 3 | FCFS **Shadow Mode**（只算决策、不控制） | ✅ **已完成**（Task 04）：`baselines/fcfs_sumo/`，25 项自检全 PASS |
+| 4 | FCFS **真实控制器**（`setSpeed`/`slowDown`/`setStop`） | ❌ **未开始**（下一步；需先定 §10.7 的参数） |
+| 5 | FCFS Baseline **复现/性能实验** | ❌ **未完成** — 目前只有 Shadow，无控制、无指标、无 30 seeds |
+| 6 | CCAM-DI 可行性确认 | ❌ 未开始（需网络获取 + 新环境，须逐次授权） |
+| 7 | 论文 LaTeX 审计与页数核算 | ❌ 未开始（无投稿 PDF、无 R1/R2 意见、本机无 LaTeX） |
+| 8 | 补充实验（密度/转向比） | ❌ 未开始（密度与车流口径仍挂起，见 §10.6） |
 
-**明确声明：当前不再进行任何工作区外的数据调查。** 上述第 1 项也只在工作区内、且不修改任何原始文件的前提下进行。
+**明确声明：当前不再进行任何工作区外的数据调查。**
 
 ---
 
@@ -145,11 +165,17 @@ additional-files = /…/sumo_rl_demo/types.typ.xml
 
 ## 8. 下一步（唯一动作）
 
-**下一唯一任务**：仅使用工作区内现有 XML（`cross*.net.xml` / `tls*.net.xml` / `routes.rou.xml` / `types.typ.xml`），**新建**一个使用**相对路径**的 `.sumocfg`（原 `cross.sumocfg` 保持不动，因为它引用工作区外绝对路径且不得修改），并执行**一次短时冒烟测试**（例如 `sumo -c <新cfg> --end 1`），确认工作区内资产可被 SUMO 正确加载。
+> **2026-11-01 更新**：本节原有的"新建相对路径 cfg + 冒烟测试"**已完成**（Task 02），
+> 见 §6 与 §10.2。当前下一唯一动作是：
 
-该动作**尚未执行**，等作者下一条指令后开始；不涉及论文修改、不生成新交通流、不启动 baseline。
+**下一唯一任务**：在作者确认 §10.7 的**第 1–3 项参数**（安全间隔、控制区定义、资源粒度）之后，
+把 `baselines/fcfs_sumo/` 从 **Shadow** 推进到**单一冲突对的最小控制原型**（例如 m05 × m10），
+只做 100 s 单次验证，目标是不出现"冲突 movement 同时占用"；在此之前**不得**开展任何性能实验。
 
-论文所述 5 档密度 / 30 种子 / 0.1 s 步长仍为 **NOT VERIFIED**，在作者给出参数前不作为任何实验输入。
+未完成的既有约束：
+
+- 论文所述 5 档密度 / 30 种子 / 0.1 s 步长仍为 **NOT VERIFIED**，在作者给出参数前不作为任何实验输入。
+- 15 组车流的生成按作者指示**挂起**（口径见 §10.6）。
 
 
 ---
@@ -272,4 +298,131 @@ additional-files = /…/sumo_rl_demo/types.typ.xml
 若将来需要回转：GitHub → Settings → General → Danger Zone → Change repository visibility → Make private。注意公开期间可能已被 clone/fork/缓存，回转只能阻止后续访问。**未跟踪文件 `scenarios/original/routes.txt` 未推送**（仍只存在于本地）。
 
 在上述两点完成前，仓库保持"本地有版本、远端为空"的状态。
+
+---
+
+## 10. Task 01–05 检查点记录（2026-11-01）
+
+### 10.1 已完成内容
+
+| Task | 内容 | 产物 |
+|---|---|---|
+| 01 | 工作区只读审计（规范、Git、资产、实验就绪度） | 会话报告；`docs/HANDOFF.md` §3 资产表复核 |
+| 02 | 工作区内相对路径 SUMO 配置 + 一次 100 s 冒烟 | `scenarios/smoke/cross3_smoke.sumocfg`；`results/smoke/` |
+| 03 | TraCI 兼容性 + 12 流冲突结构分析 | `scenarios/smoke/traci_smoke_test.py`、`scenarios/smoke/net_analysis.py` |
+| 04 | FCFS **Shadow Mode**（决策计算 + 事件记录，零控制） | `baselines/fcfs_sumo/`（9 文件 / 1273 行）；`results/fcfs_shadow/` |
+| 05 | 审计 + HANDOFF 更新 + `.gitignore` 收紧 + 本地 checkpoint | 本次 commit |
+
+### 10.2 SUMO / TraCI 实际验证结果
+
+| 项目 | 实测值 |
+|---|---|
+| SUMO 二进制 | `/usr/bin/sumo` **1.12.0**，`SUMO_HOME=/usr/share/sumo`，另有 `sumo-gui`/`netconvert`/`duarouter` |
+| Python | 3.12.2（conda `base`） |
+| TraCI 客户端 | pip `traci==1.24.0`、`sumolib==1.24.0` |
+| TraCI 协议 | `getVersion()` → **`(20, 'SUMO 1.12.0')`**，握手成功 |
+| Task 02（CLI，`--end 100`，步长 1 s） | 退出码 **0**；loaded/inserted **80**、arrived **72**、running 8；collisions **0**、teleports **0**；1 条紧急制动警告（`flow_we.6` @ t=64）；平均速度 9.44 m/s、timeLoss 4.32 s |
+| Task 03（TraCI，31 步） | 38 项检查，仅 `vehicle.setLane` 不存在（**TraCI 本身无此方法**，非版本不兼容） |
+| Task 04（TraCI，100 步） | 80 辆车、80 次请求、进入 80 / 离开 78 / 结束时在内 2、0 非法状态转换 |
+| 可复现性 | Task 02（CLI）与 Task 04（TraCI）的车辆数/到达数/警告完全一致；Task 04 两次运行统计逐项相同 → **种子固定、结果确定** |
+| 未验证 | TraCI **写接口**语义（`setSpeed`/`slowDown`/`setStop`/`resume`）、订阅式读取、`getNextLinks`、多连接复用 |
+
+### 10.3 Shadow Controller：数据与运行方式
+
+```bash
+python3 -m baselines.fcfs_sumo.test_logic      # 纯逻辑自检（不需 SUMO），25/25 PASS
+python3 -m baselines.fcfs_sumo.runner          # 一次 100 s Shadow 运行（只读 getter）
+python3 -m baselines.fcfs_sumo.analyze_shadow  # 对产出的 CSV 做二次分析
+```
+输出目录 `results/fcfs_shadow/`（`vehicle_events.csv`、`requests.csv`、`decisions.csv`、
+`shadow_summary.json`、`shadow_run.log`、`shadow_analysis.txt`）。**这些产物全部可再生，未纳入 Git。**
+
+关键数字（**SHADOW_MODE，无控制，不得当作性能结果**）：
+
+| 指标 | 值 |
+|---|---|
+| 车辆 / 请求 / 重复请求 | 80 / 80 / **0** |
+| 优先级重排次数 | **0** |
+| 12 条 movement 是否全部识别 | ✅（直行 40、左转 20、右转 20，符合 1:2:1） |
+| 进入 / 离开 / 结束时仍在交叉口内 | 80 / 78 / 2（配对 80 = 78 + 2 ✅） |
+| 决策行 | 4561（BLOCKED 331、ELIGIBLE 92、UNDETERMINED 131、ENTERED 186、CLEARED 3821） |
+| 进入前最后一次决策 | ELIGIBLE **9** / BLOCKED **46** / UNDETERMINED **25** |
+| 实际进入时上一步为 BLOCKED | 46 辆（其中 **35** 辆当刻确有冲突 movement 在内） |
+| 冲突 movement 同时占用 | 21 组冲突对、71 个步对（上界口径，见 §10.4） |
+| 代理请求 → 进入交叉口 | 均值 6.92 s，中位数 7.00 s，范围 1–15 s |
+
+**解释**：Shadow 无执行机构，因此"应被阻止却实际驶入"是**必然诊断**，**不是碰撞，也不是 FCFS 失效**。
+它的价值是把"不控制会怎样"量化成可对照的基线。另需注意：在安全间隔未定义前，
+80 辆中只有 **9 辆**能被确定性判定为准入——这是**必须先由作者给参数**才能推进的硬约束。
+
+### 10.4 已知缺陷与限制
+
+1. **冲突矩阵是 provisional**：`center` junction 为 `unregulated` 且 `<request>`/`foes` 元素数 = **0**，
+   网络不提供任何权威让行模型；矩阵由内部车道中心线几何推导（24 对交叉）+ 8 对共享出口汇流，
+   不含车宽、安全间距、清空时间。**车道中心线不相交 ≠ 可同时通行。**
+2. **"冲突同时占用"只是 movement 级上界**：两辆分属冲突 movement 的车可能位于不同平行内部车道。
+   `collision.check-junctions` **未启用**，因此本仓库目前**没有任何碰撞证据**，不得把 §10.3 的
+   46 辆/71 步对解读为碰撞。
+3. **步长 1 s**（论文为 0.1 s）；1 s 下速度控制粒度极粗，真实控制阶段必须重新确定。
+4. **车流只有一套** `routes.rou.xml`，其密度约为 MaxD 的 1/10、比 MinD 还稀（见 §10.6），
+   因此本阶段所有绝对数值都**不代表**论文条件。
+5. **代理请求时间不是 Dresner–Stone 的请求时间**（无 ACZ/控制区定义）。
+6. **ELIGIBLE 的语义偏严格**：只要冲突集合在请求之后被占用过就必须 `UNDETERMINED`。
+   这在没有安全间隔参数时是正确的保守选择，但意味着**控制阶段无法对多数车辆给出"批准"判定**，
+   必须先由作者裁决阈值口径。
+7. `conflicts.py` 的**交叉校验**依赖 `results/smoke/net_analysis.log`（该文件可再生、未入库）；
+   缺失时校验降级为 `SKIP`/`found=False`，冲突模型本身仍正常构建（已实测）。
+8. TraCI **写接口未验证**：`setSpeed`/`slowDown`/`setStop`/`resume` 的真实生效窗口与安全校核尚未实测。
+9. **车道数 ↔ 4/6/8 映射**未确认（`cross1` 与 `cross2` 都是每进口 2 车道）；U-turn 连接存在但未建模。
+
+### 10.5 未验证假设（不得据以修改论文或实验）
+
+| 假设 | 状态 |
+|---|---|
+| 论文"4/6/8 车道"= `cross2/3/4` 还是 `cross1/3/4` | **NOT VERIFIED** |
+| 论文 5 档密度 / 30 seeds / 0.1 s 步长在工作区内可证 | **NOT VERIFIED**（只有 1 套 flow、只有 flow 级 seed、原 cfg 写 `step-length=1`） |
+| 历史 DSIP 结果可复现 | **否**：无源码、无 checkpoint、无逐 run CSV |
+
+### 10.6 车流口径现状（作者口述 + 工作区内核验，尚未用于任何实验）
+
+- `scenarios/original/routes.txt`：15 格（5 档 × 3 种车道数）全部满足 **直行 : 单个转向方向 = 2 : 1**
+  （换言之为 L:S:R = 1:2:1）；括号内为 **1000 s 视界内直行的平均发车间隔**。
+- 作者说明 SUMO 步长为 **0.1 s** → 实际秒间隔 = 括号值 ÷ 10；一次 1000 s 运行的每进口每方向车辆数 = 表内数字 × 10。
+- 按该 ×10 口径，**3 车道列与论文 Table I 逐档精确吻合**：直行 480/600/768/960/1200、
+  左(右)转 240/300/384/480/600（2/4 车道列仅整数取整差 ±12）。
+- 现有 `routes.rou.xml`（直 100 / 转 50、间隔 10 s/20 s、`end=1000`）用的是第 5 档的数字但摊在 1000 s 上，
+  实际密度约为 MaxD 的 1/10（直行约 120 veh/(h·lane)，MinD 为 480）。
+- **15 组车流文件按作者指示挂起，未生成任何文件。** `routes.txt` 仍为未跟踪状态（按作者要求不提交）。
+
+### 10.7 进入真实 FCFS 控制前必须解决的技术问题（按阻断程度排序）
+
+| # | 问题 | 为什么阻断 |
+|---|---|---|
+| 1 | **所需安全间隔 Δt_safe 未定** | 25/80 辆在"无法判定"状态下驶入；无此参数就无法给出批准/拒绝 |
+| 2 | **控制区 / ACZ 定义与长度** | 决定请求时刻语义与开始限速的位置 |
+| 3 | **资源粒度**（整个 movement / 内部车道集合 / 网格单元） | 直行 flow 占 3 条 via 车道，直接决定吞吐与保守度 |
+| 4 | **清空判定** | 有 11 辆在"占据方同一步清空"时驶入；需下游客量/清空距离定义 |
+| 5 | **控制手段与其副作用** | `setSpeed` 绕过跟驰安全校核（可能造成车体重叠）；`setStop` 会污染 `stopTime` 指标；须先做单冲突对验证 |
+| 6 | **步长**（1 s vs 论文 0.1 s） | 1 s 下每步只能改一次速度，控制精度受限 |
+| 7 | **到达时间模型** | 请求→进入跨度 1–15 s；`departLane=first` 导致进口内变道，加剧 ETA 噪声 |
+| 8 | **死锁 / 平局规则** | Shadow 阶段天然不出现，加控制后必然出现 |
+| 9 | **指标与安全口径** | `tripinfo.timeLoss` vs 自定义等待；是否启用 `collision.check-junctions`（AGENTS §7.7） |
+| 10 | **车流/密度口径落地** | §10.6 的 ×10 口径需作者最终批准后才能生成 15 组流 |
+
+### 10.8 Git 状态（本次 checkpoint）
+
+- 提交信息：`checkpoint: validate SUMO environment and FCFS shadow controller`
+- 提交 hash：见 `git log -1`（本文档随该提交入库，无法自指其 hash）
+- 分支 `main`，tracking `origin/main`；**本次未 push / 未 pull / 未 fetch**，未改写任何历史
+- **纳入版本控制**：
+  - `baselines/fcfs_sumo/`（9 个文件：`__init__.py`、`conflicts.py`、`tracker.py`、`queue.py`、`shadow.py`、`runner.py`、`analyze_shadow.py`、`test_logic.py`、`README.md`）
+  - `scenarios/smoke/`（`cross3_smoke.sumocfg`、`traci_smoke_test.py`、`net_analysis.py`）
+  - `docs/HANDOFF.md`（本次更新）
+  - `.gitignore`（新增 `results/**` 生成物忽略规则）
+- **明确未提交**：
+  - `results/**`（CSV/JSON/TXT/LOG/XML）—— 全部可由 §10.3 的命令再生，已由 `.gitignore` 覆盖
+  - `scenarios/original/routes.txt` —— 按作者要求保持未跟踪
+  - `scenarios/original/*` —— 原始资产，未修改、未新增
+  - `paper/reviews/` —— 审稿材料，`.gitignore` 已排除
+  - 本机环境信息、绝对路径产物、模型权重 —— 从未生成或已忽略
 
