@@ -47,10 +47,30 @@ import itertools
 from shapely.geometry import LineString, Point
 
 DT_SAFE_DEFAULT = 2.0
-V_DEFAULT = 13.9          # m/s, from scenarios/original/types.typ.xml
-V_SLOW = 5.0              # m/s, lower bound of the in-junction traversal speed
+V_DEFAULT = 13.9          # m/s, scenarios/original/types.typ.xml maxSpeed
+A_MAX = 1.0               # m/s^2, types.typ.xml accel  (best case)
+A_MIN = 0.5               # m/s^2, effective floor (accel 1.0 halved: queueing,
+                          # junction friction); used for the late bound only
 COORD_ROUND = 1           # decimals used to make crossing keys agree
 MAX_ETA = 30.0            # s, ignore vehicles further than this in time
+
+
+def travel_time(dist, v0, accel, v_max=V_DEFAULT):
+    """Time to cover ``dist`` from speed ``v0`` accelerating at ``accel``.
+
+    Straight out of the vType in ``scenarios/original/types.typ.xml``
+    (``accel=1.0``, ``maxSpeed=13.9``).  A blanket "V_SLOW = 5 m/s" was wrong in
+    the unsafe direction: a vehicle starting from rest needs 6.3 s to cover a
+    20 m internal lane, not 4.0 s, so the windows ended too early.
+    """
+    if dist <= 0.0:
+        return 0.0
+    v0 = max(0.0, min(v0, v_max))
+    accel = max(accel, 0.05)
+    d_acc = max(0.0, (v_max * v_max - v0 * v0) / (2.0 * accel))
+    if dist <= d_acc:
+        return (-v0 + (v0 * v0 + 2.0 * accel * dist) ** 0.5) / accel
+    return (v_max - v0) / accel + (dist - d_acc) / v_max
 
 
 class ConflictPoints:
@@ -153,37 +173,39 @@ class WindowBooker:
 
     # ---- planning -----------------------------------------------------
     def plan(self, movement_index, from_lane, now, dist_to_stop, speed):
-        """Return [(key, t0, t1)] covering the *uncertainty* of the traversal.
+        """Return [(key, t0, t1)] from a kinematic profile of the traversal.
 
-        A granted vehicle can be slowed later by a leader, so a point estimate of
-        the crossing time is not safe: the window is built from a fast and a slow
-        bound, ``[t_early, t_late + dT_safe]``.  Using only ``speed`` as the
-        estimate produced real crossing collisions at MedD.
+        Times come from :func:`travel_time` with the vType's own accel/maxSpeed.
+        The window is the band between the best case (full accel) and the worst
+        case (half accel) plus ``dT_safe``, so a vehicle that is slowed later
+        still stays inside its booking.
         """
         hit = self.pts.via_of.get((movement_index, from_lane))
         if hit is None:
             return None
         via, to_lane = hit
         m = self.pts.model.movements[movement_index]
+        v0 = max(0.0, speed or 0.0)
 
-        v_now = speed if speed and speed > 0.5 else self.v_typ
-        eta_early = now + dist_to_stop / self.v_typ
-        eta_late = now + dist_to_stop / max(min(v_now, self.v_typ), V_SLOW)
-        if eta_late - now > MAX_ETA:
+        def tt(extra, accel):
+            return travel_time(dist_to_stop + extra, v0, accel, self.v_typ)
+
+        t_eta_fast = tt(0.0, A_MAX)
+        t_eta_slow = tt(0.0, A_MIN)
+        if t_eta_slow > MAX_ETA:
             return None
 
         via_len = self.pts.via_len.get(via, 20.0)
-        t_exit_early = eta_early + via_len / self.v_typ
-        t_exit_late = eta_late + via_len / V_SLOW
-
-        plan = [(self.pts.space_key(via), eta_early, t_exit_late)]
+        plan = [(self.pts.space_key(via),
+                 now + t_eta_fast,
+                 now + tt(via_len, A_MIN) + self.dt_safe)]
         for d, key in self.pts.crossings_of(via):
             plan.append((key,
-                         eta_early + d / self.v_typ,
-                         eta_late + d / V_SLOW + self.dt_safe))
+                         now + tt(d, A_MAX),
+                         now + tt(d, A_MIN) + self.dt_safe))
         plan.append((("merge", "%s_%d" % (m["to_edge"], to_lane)),
-                     t_exit_early,
-                     t_exit_late + self.dt_safe))
+                     now + tt(via_len, A_MAX),
+                     now + tt(via_len, A_MIN) + self.dt_safe))
         return plan
 
     # ---- admission ----------------------------------------------------

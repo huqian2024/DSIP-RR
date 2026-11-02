@@ -237,13 +237,19 @@ class Controller:
         return True
 
     def _try_book(self, vid, mi, lane_i, now):
-        """Time-window admission (conflict points); True if booked."""
+        """Time-window admission (conflict points); True if booked.
+
+        Deliberately does **not** check physical occupancy of the via/exit lane
+        at this instant.  That check is what forced every vehicle to stop: a
+        vehicle 28 m upstream can never satisfy "the lane is free right now",
+        even though the lane will certainly be free by the time it arrives.
+        Admission is therefore purely about the predicted time windows; the
+        pass/fail of the physical state is handled by the windows themselves.
+        """
         dist = self._dist_to_stop(vid)
         speed = self.tc.vehicle.getSpeed(vid)
         plan = self.booker.plan(mi, lane_i, now, dist, speed)
         if plan is None:
-            return False
-        if not self._own_clear(mi, lane_i, vid):
             return False
         if not self.booker.free(plan, now):
             return False
