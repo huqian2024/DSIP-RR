@@ -12,7 +12,7 @@
 > | TraCI 通路（traci 1.24.0 ↔ SUMO 1.12.0，协议 v20） | **已验证（含写入）**：`setStop` / `resume` 在 0.1 s 下生效 |
 > | FCFS **Shadow Mode**（只算决策、不控制车辆） | **已完成**（`baselines/fcfs_sumo/`） |
 > | FCFS **真实控制（单 run 验证）** | **✅ 已跑通**：`baselines/fcfs_sumo/control.py`；seed 81890、100 s 下 **无控制 2 次碰撞 → 控制 0 次** |
-> | FCFS **完整基线复现（30 seeds × 5 密度 × 3 车道）** | **❌ 未开始**（仅单 run 验证，无性能矩阵） |
+> | FCFS **完整基线复现（30 seeds × 5 密度 × 3 车道 = 450 runs）** | **🔄 扫描中**：`experiments/run_fcfs_sweep.py`（8 进程、可续跑）；截至 2026-11-02 收工已跑完 170+/450 |
 > | CCAM-DI / DSIP 复现 | **❌ 未开始**（无源码、无权重） |
 > | 审稿意见 | **✅ 已获取并归档**（EIC + R1 Reject + R2 Major Revision；见 §11） |
 > | 论文 LaTeX 审计（AGENTS §4） | **部分完成**：审稿矩阵 + 口径一致性表已建；本机无 LaTeX，**由作者云端编译** |
@@ -57,7 +57,7 @@ IEEE T-ITS 论文 **T-ITS-26-05-2776**（DSIP: A Dynamic Coordination Planner fo
 | 资产 | 状态 | 依据 / 说明 |
 |---|---|---|
 | `scenarios/original/cross.sumocfg` | **AVAILABLE** | 存在；`begin=0`、`end=1000`、`step-length=1`；**三个输入均为工作区外的绝对路径**（见 §3.2） |
-| `scenarios/original/cross1/2/3/4.net.xml` | **AVAILABLE** | 每进口车道数 2/2/3/4；`center` 为 `unregulated`；无 `tlLogic`；进口边 speed=13.90；进口边长 86.4 / 89.6 / 86.4 / 83.2 m |
+| `scenarios/original/cross1/2/3/4.net.xml` | **AVAILABLE** | 每进口车道数 2/2/3/4；`center` 为 `unregulated`；无 `tlLogic`；进口边 speed=13.90；进口边长 86.4 / 89.6 / 86.4 / 83.2 m。**车道语义（作者确认 2026-11-02）：`cross2` = 单向 2 车道 / 双向 4 车道，`cross3` = 单向 3 / 双向 6，`cross4` = 单向 4 / 双向 8；`cross1` 无用（同为 2 车道，弃用）** |
 | `scenarios/original/tls2/3/4.net.xml` | **AVAILABLE** | 每进口车道数 2/3/4；`center` 为 `traffic_light`；各含 1 个 `tlLogic`（4 个 phase）；进口边 speed=13.90 |
 | `scenarios/original/routes.rou.xml` | **AVAILABLE（单套）** | 12 条 `route` + 12 条 `flow`，无 `vehicle` 元素；`begin=0`、`end=1000`；直行 `number=100`/`normal(10, 1.0)`，转向 `number=50`/`normal(20, 1.0)`；flow 级 `seed` = 82339–82350；`type="car"`；`departPos/departSpeed="random"` |
 | `scenarios/original/types.typ.xml` | **AVAILABLE** | 单一 `vType car`：IDM、accel 1.0、decel 4.5、sigma 0.5、length 5.0、minGap 3.0、maxSpeed 13.9、tau 2.0、vClass passenger |
@@ -377,7 +377,9 @@ python3 -m baselines.fcfs_sumo.analyze_shadow  # 对产出的 CSV 做二次分�
 7. `conflicts.py` 的**交叉校验**依赖 `results/smoke/net_analysis.log`（该文件可再生、未入库）；
    缺失时校验降级为 `SKIP`/`found=False`，冲突模型本身仍正常构建（已实测）。
 8. TraCI **写接口未验证**：`setSpeed`/`slowDown`/`setStop`/`resume` 的真实生效窗口与安全校核尚未实测。
-9. **车道数 ↔ 4/6/8 映射**未确认（`cross1` 与 `cross2` 都是每进口 2 车道）；U-turn 连接存在但未建模。
+9. ~~**车道数 ↔ 4/6/8 映射**未确认~~ → **已确认（作者 2026-11-02）**：
+   `cross2` = 单向 2 / 双向 4，`cross3` = 单向 3 / 双向 6，`cross4` = 单向 4 / 双向 8，
+   **`cross1` 无用**。U-turn 连接存在但未建模。
 10. **出口车道汇流会产生真实碰撞**（2026-11-01 新发现）：用 `scenarios/flows/` 的 15 组车流在**无控制**
     条件下运行，全部文件在 100 s 内都出现 SUMO 碰撞（默认 teleport），且 **100% 发生在出口车道**
     （`center2north/south/east/west`），交叉口内部（`:center_*`）为 0；1 s 与 0.1 s 步长下都出现。
@@ -388,7 +390,7 @@ python3 -m baselines.fcfs_sumo.analyze_shadow  # 对产出的 CSV 做二次分�
 
 | 假设 | 状态 |
 |---|---|
-| 论文"4/6/8 车道"= `cross2/3/4` 还是 `cross1/3/4` | **NOT VERIFIED** |
+| 论文"4/6/8 车道"= `cross2/3/4` 还是 `cross1/3/4` | **CONFIRMED（作者 2026-11-02）**：`cross2/3/4` = 双向 4/6/8；`cross1` 无用 |
 | 论文 5 档密度 / 30 seeds / 0.1 s 步长在工作区内可证 | **NOT VERIFIED**（只有 1 套 flow、只有 flow 级 seed、原 cfg 写 `step-length=1`） |
 | 历史 DSIP 结果可复现 | **否**：无源码、无 checkpoint、无逐 run CSV |
 
@@ -736,8 +738,8 @@ forced 车辆为 flow_ne.24 / flow_we.58 / flow_nw.40 / flow_ns.92 —— 与碰
 **扫描器**：`experiments/run_fcfs_sweep.py`（新增）
 
 - 规模：`3 车道数 × 5 密度 × 30 seeds = 450 runs`，每 run 1000 s / 0.1 s 步长
-- 网络映射：`lanes2→cross2`、`lanes3→cross3`、`lanes4→cross4`
-  （**lanes2 的映射是按命名推断，`cross1` 同为 2 车道，仍待作者确认**）
+- 网络映射（**作者 2026-11-02 确认**）：`lanes2→cross2`（单向 2 / 双向 4）、
+  `lanes3→cross3`（单向 3 / 双向 6）、`lanes4→cross4`（单向 4 / 双向 8）；**`cross1` 无用**
 - 并行：8 进程（本机 16 核）；实测最重用例 `cross4/lanes4_density5` 约 103 s/run
 - 可续跑：结果 JSON 已存在即跳过，中断后直接重跑即可
 - 产物：`results/fcfs_control/run_control_*.json`（逐 run 明细）
@@ -756,6 +758,71 @@ forced 车辆为 flow_ne.24 / flow_we.58 / flow_nw.40 / flow_ns.92 —— 与碰
 **这是已知的实现噪声，不要据此判定控制器失效。**
 
   （见 11.5d 的量纲分析），而出口排队是 MedD 密度的固有属性。
+
+
+---
+
+## 11.7 2026-11-02 收工状态
+
+### 11.7.1 车道数 ↔ 网络映射（**作者确认**）
+
+| 流量文件 | 网络 | 单向车道 | 双向车道 |
+|---|---|---|---|
+| `lanes2_density*.rou.xml` | `cross2.net.xml` | 2 | **4** |
+| `lanes3_density*.rou.xml` | `cross3.net.xml` | 3 | **6** |
+| `lanes4_density*.rou.xml` | `cross4.net.xml` | 4 | **8** |
+
+**`cross1.net.xml` 无用**（同为每进口 2 车道，弃用，不再作为候选）。
+
+### 11.7.2 全矩阵扫描（后台运行中）
+
+- 命令：`python3 experiments/run_fcfs_sweep.py --workers 8`
+- 收工时进度：**~170 / 450（38%）**，`ERROR` 计数 0，ETA ~80 分钟
+- **可中断续跑**：直接重跑同一条命令即可，已完成的结果 JSON 会被跳过
+- 进度查看：
+  ```bash
+  grep -E '^\[' results/fcfs_sweep/sweep.log | tail -2
+  wc -l results/fcfs_sweep/summary.csv
+  ```
+
+### 11.7.3 已产出的分组统计（部分，非最终结论）
+
+| lanes/density | 已完成 runs | 碰撞总数 | 有碰撞的 runs | 平均 TimeLoss | 平均速度 |
+|---|---|---|---|---|---|
+| 2 / 1 | 30 | 33 | **19** | 65.8 s | 2.62 m/s |
+| 2 / 2 | 30 | 35 | **19** | 65.9 s | 2.60 m/s |
+| 2 / 3 | 30 | 37 | **18** | 66.8 s | 2.60 m/s |
+| 2 / 4 | 30 | 39 | **20** | 67.6 s | 2.55 m/s |
+| 2 / 5 | 30 | 36 | **17** | 67.2 s | 2.57 m/s |
+| 3 / 1 | 23 | 16 | 9 | 63.0 s | 2.87 m/s |
+
+**两个必须先记下来的观察（待全量数据确认）**
+
+1. **"零碰撞"在 2 车道档完全不成立**：约 **19/30 runs（63%）** 出现碰撞。
+   因此论文里**绝对不能**把 FCFS 写成无碰撞方法。
+2. **各密度的 TimeLoss（65.8→67.6 s）与速度（2.62→2.55 m/s）几乎不随密度变化**
+   ⇒ FCFS 的表现是**控制器受限**，不是需求受限。旁证：MinD（density 1）下
+   每 run 只插入约 346 辆（需求 2080），即在**最低密度就已经饱和**。
+
+⇒ 这一点必须在论文/回复里明确：**该 FCFS 实现是一个偏保守的预留式基线**，
+它的低性能来源已定位（`accel=1.0` 的停车代价 + 出口汇流串行），
+但**它的碰撞率也必须如实报告**，不能只报 TimeLoss 与速度。
+
+### 11.7.4 下一步（收工后）
+
+1. 扫描跑完后：用 `results/fcfs_sweep/summary.csv` 出分组统计与箱线图数据
+   （x 轴 = 密度，分组 = 方法；每个 run 一个点，不预先平均）。
+2. 依据 AGENTS §6.3：**FCFS 的箱线图不得与历史 DSIP 的箱线图混在一张图里**
+   （历史 DSIP 无逐 run 数据），只能与新跑的同协议结果并列。
+3. 之后按作者意愿试下一个 baseline（候选：CCAM-DI 或另一个 AIM 类方法），
+   需先确认可获取性与工作量，不在本文件里预设结论。
+
+### 11.7.5 Git
+
+- 分支 `main`；本次收工提交并 **push 到 `origin/main`**
+- 未入库：`results/**`（可再生）、`paper/reviews/**`（私人材料）、
+  `scenarios/original/routes.txt`（按作者要求未跟踪）
+- 未改写历史；投稿资产零改动（`git diff e41abb1 -- scenarios/original paper/submitted` 为空）
 
 **留给作者的三条路**
 
@@ -780,9 +847,9 @@ forced 车辆为 flow_ne.24 / flow_we.58 / flow_nw.40 / flow_ns.92 —— 与碰
 
 
 
-3. **单 run 不足以当基线**：仍需 30 seeds × 5 密度 × 3 车道；车道数↔net 映射（`cross1` vs `cross2`）仍未确认。
-   已实现 `--net` / `--flows`，可按 `lanes2→cross2`、`lanes3→cross3`、`lanes4→cross4` 扫描
-   （**该映射为按 net 命名单调序列的推断，仍待作者确认**；`cross1` 亦是 2 车道，二义未消）。
+3. **单 run 不足以当基线**：**已由 `experiments/run_fcfs_sweep.py` 解决** ——
+   30 seeds × 5 密度 × 3 车道 = 450 runs 已实现并启动。
+   车道数↔net 映射已由作者确认（`cross2/3/4` = 双向 4/6/8，`cross1` 无用）。
 3. `--collision.check-junctions` 仍未启用；当前"0 碰撞"仅指 SUMO 的车辆碰撞检测。
 4. 本机无 LaTeX；页数与公式渲染由作者在云端编译确认。
 
