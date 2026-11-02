@@ -42,6 +42,9 @@ L_ACZ = 28.0                     # m   D2
 STOP_OFFSET = 2.0                # m   stop this far before the approach lane end
 V_MAX = 13.9                     # m/s from types.typ.xml
 MERGE_CLEAR = V_MAX * DT_SAFE    # m   exit-lane merge window (~27.8 m)
+HEAD_LOOKAHEAD = 12.0           # m   a vehicle with a leader closer than this on
+                                #     its lane is NOT the lane head, so it is left
+                                #     to IDM car-following instead of being stopped
 GRANT_TIMEOUT = 5.0             # s   implementation guard: a grant that has not
                                 #     produced a junction entry within this time is
                                 #     revoked, so no vehicle can hold a resource it
@@ -118,6 +121,7 @@ class Controller:
         self.stopped = set()       # vids we issued setStop for
         self.pending_resume = set()  # granted but stop not reached yet
         self.reserved = {}         # lane -> vid
+        self.touched = set()       # (vid, lane) pairs the vehicle has reached
         self.release = {}          # lane -> earliest re-use time
         self.too_close = 0
         self.events = []
@@ -157,24 +161,41 @@ class Controller:
         return not any(self._lane_busy(l, vid, now)
                        for l in self.rm.of(mi, lane_i))
 
+    def _release_lane(self, lane, now):
+        """Free a lane.  The exit-lane merge window (MERGE_CLEAR ~= v_max*DT_SAFE)
+        already encodes the safety gap, so adding DT_SAFE again would halve
+        capacity; the buffer is applied only where occupancy is instantaneous."""
+        self.reserved.pop(lane, None)
+        self.release[lane] = now + (0.0 if lane in self.rm.exit_lanes else DT_SAFE)
+
     def _refresh_reservations(self, active):
-        """Drop reservations of vehicles that already cleared their lanes."""
+        """Drop a reservation only once the vehicle has actually passed that lane.
+
+        A vehicle inside the junction has ``roadID`` = ``:center_*``, i.e. it no
+        longer matches its exit lane, but it has not merged onto that lane yet.
+        Releasing on that basis is what let two merge partners onto the same
+        exit lane at the same moment, so a lane is released only after the
+        vehicle has actually been observed on it and has cleared the merge
+        window.
+        """
         now = self.tc.simulation.getTime()
         for lane, vid in list(self.reserved.items()):
             if vid not in active:
-                self.reserved.pop(lane, None)
-                self.release[lane] = now + DT_SAFE
+                self._release_lane(lane, now)
                 continue
             if vid not in self.entered:
-                continue                      # still approaching: keep it
+                continue                          # still approaching
             road = self.tc.vehicle.getRoadID(vid)
             if lane == road:
-                if lane not in self.rm.exit_lanes:
-                    continue                  # still on the via lane
-                if self.tc.vehicle.getLanePosition(vid) < MERGE_CLEAR:
-                    continue                  # still inside the merge window
-            self.reserved.pop(lane, None)
-            self.release[lane] = now + DT_SAFE
+                self.touched.add((vid, lane))
+                if lane in self.rm.exit_lanes:
+                    if self.tc.vehicle.getLanePosition(vid) < MERGE_CLEAR:
+                        continue                  # still in the merge window
+                else:
+                    continue                      # still on the via lane
+            elif (vid, lane) not in self.touched:
+                continue                          # not reached this lane yet
+            self._release_lane(lane, now)
 
     def _revoke_stale_grants(self, active, now):
         """D8 no hold-and-wait: drop grants that never turned into an entry."""
@@ -255,6 +276,10 @@ class Controller:
         self._revoke_stale_grants(active, now)
 
         # 1) ACZ request registration (D2): first time inside L_ACZ
+        #    Only the HEAD of each approach lane is admitted or stopped; every
+        #    vehicle behind it is queued by SUMO's IDM.  Stopping followers as
+        #    well produced most of the "too close to brake" / forced admissions
+        #    and let a grant sit on a resource that the vehicle could not use.
         waiting = []
         for vid in active:
             if vid in self.granted:
@@ -267,6 +292,8 @@ class Controller:
                 continue
             if self._dist_to_stop(vid) <= L_ACZ:
                 self.request_time.setdefault(vid, now)
+                if tc.vehicle.getLeader(vid, HEAD_LOOKAHEAD) is not None:
+                    continue                  # not the head of its lane
                 waiting.append((self.request_time[vid], vid, mi,
                                 tc.vehicle.getLaneIndex(vid)))
 
