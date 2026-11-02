@@ -35,6 +35,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from baselines.fcfs_sumo.conflicts import ConflictModel   # noqa: E402
+from baselines.fcfs_sumo.booking import ConflictPoints, WindowBooker  # noqa: E402
 
 # --- approved parameters (docs/decisions/fcfs-parameters.md) ---------------
 DT_SAFE = 2.0                    # s   D1
@@ -107,11 +108,12 @@ class ResourceMap:
 class Controller:
     """FCFS-by-resource admission control with setStop / resume actuation."""
 
-    def __init__(self, model, resources, traci_, queue_guard=False):
+    def __init__(self, model, resources, traci_, queue_guard=False, booker=None):
         self.model = model
         self.rm = resources
         self.tc = traci_
         self.queue_guard = queue_guard
+        self.booker = booker
         self.request_time = {}     # vid -> time at ACZ entry (frozen)
         self.granted = {}          # vid -> movement index
         self.grant_time = {}       # vid -> time the grant was issued
@@ -217,6 +219,37 @@ class Controller:
                     self.release[lane] = now + DT_SAFE
             self.events.append(("revoked", now, vid))
 
+    def _own_clear(self, mi, lane_i, vid):
+        """Physical safety net: the vehicle's own via and exit lane are clear."""
+        hit = self.booker.pts.via_of.get((mi, lane_i))
+        if hit is None:
+            return True
+        via, to_lane = hit
+        m = self.model.movements[mi]
+        exit_lane = "%s_%d" % (m["to_edge"], to_lane)
+        for lane, is_exit in ((via, False), (exit_lane, True)):
+            for v in self.tc.lane.getLastStepVehicleIDs(lane):
+                if v == vid:
+                    continue
+                if is_exit and self.tc.vehicle.getLanePosition(v) >= MERGE_CLEAR:
+                    continue
+                return False
+        return True
+
+    def _try_book(self, vid, mi, lane_i, now):
+        """Time-window admission (conflict points); True if booked."""
+        dist = self._dist_to_stop(vid)
+        speed = self.tc.vehicle.getSpeed(vid)
+        plan = self.booker.plan(mi, lane_i, now, dist, speed)
+        if plan is None:
+            return False
+        if not self._own_clear(mi, lane_i, vid):
+            return False
+        if not self.booker.free(plan, now):
+            return False
+        self.booker.commit(plan)
+        return True
+
     def _blocked_by_leader(self, vid):
         """True if a non-granted vehicle is queued directly ahead of vid."""
         if not self.queue_guard:
@@ -272,7 +305,8 @@ class Controller:
         for v in active:
             if tc.vehicle.getRoadID(v).startswith(":"):
                 self.entered.add(v)
-        self._refresh_reservations(active)
+        self._refresh_reservations(active) if self.booker is None else \
+            self.booker.prune(now)
         self._revoke_stale_grants(active, now)
 
         # 1) ACZ request registration (D2): first time inside L_ACZ
@@ -302,9 +336,14 @@ class Controller:
             if self._blocked_by_leader(vid):
                 self._stop_at_line(vid)
                 continue
-            if self._free(vid, mi, lane_i, now):
-                for lane in self.rm.of(mi, lane_i):
-                    self.reserved.setdefault(lane, vid)
+            if self.booker is not None:
+                ok = self._try_book(vid, mi, lane_i, now)
+            else:
+                ok = self._free(vid, mi, lane_i, now)
+                if ok:
+                    for lane in self.rm.of(mi, lane_i):
+                        self.reserved.setdefault(lane, vid)
+            if ok:
                 self.granted[vid] = mi
                 self.grant_time[vid] = now
                 self.grant_count += 1
@@ -312,8 +351,16 @@ class Controller:
                     self._try_resume(vid, now)
             elif not self._stop_at_line(vid):
                 # cannot be held any more -> forced through; record it honestly
-                for lane in self.rm.of(mi, lane_i):
-                    self.reserved.setdefault(lane, vid)
+                if self.booker is not None:
+                    # best effort: still book so that later grants avoid it
+                    plan = self.booker.plan(mi, lane_i, now,
+                                            self._dist_to_stop(vid),
+                                            tc.vehicle.getSpeed(vid))
+                    if plan:
+                        self.booker.commit(plan)
+                else:
+                    for lane in self.rm.of(mi, lane_i):
+                        self.reserved.setdefault(lane, vid)
                 self.granted[vid] = mi
                 self.grant_time[vid] = now
                 self.events.append(("forced", now, vid))
@@ -361,11 +408,16 @@ def _count_episodes(collisions, gap=0.5):
 
 
 def run(end_time=100.0, seed=81890, control=True, granularity="movement",
-        net=NET, flows=ROU, quiet=False, queue_guard=False):
+        net=NET, flows=ROU, quiet=False, queue_guard=False,
+        booking="window"):
     import traci
 
     model = ConflictModel(net_path=str(ROOT / net))
     rm = ResourceMap(model, granularity=granularity)
+    booker = None
+    if control and booking == "window":
+        booker = WindowBooker(ConflictPoints(model),
+                              dt_safe=DT_SAFE, v_typ=V_MAX)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
     cmd = ["sumo", "-n", net, "-r", flows, "-a", TYP,
@@ -390,7 +442,8 @@ def run(end_time=100.0, seed=81890, control=True, granularity="movement",
     say("-" * 78)
 
     traci.start(cmd)
-    ctrl = Controller(model, rm, traci, queue_guard=queue_guard) if control else None
+    ctrl = Controller(model, rm, traci, queue_guard=queue_guard,
+                      booker=booker) if control else None
     collisions = []
     try:
         steps = int(round(end_time / STEP))
@@ -424,6 +477,7 @@ def run(end_time=100.0, seed=81890, control=True, granularity="movement",
         "n_too_close": ctrl.too_close if ctrl else 0,
         "n_forced": (sum(1 for e in ctrl.events if e[0] == "forced") if ctrl else 0),
         "n_revoked": (ctrl.revoked if ctrl else 0),
+        "booking": (booker.stats() if booker is not None else None),
         "events": (ctrl.events if ctrl else []),
     }
     tag = (("control" if control else "baseline")
@@ -466,6 +520,9 @@ def main():
     ap.add_argument("--queue-guard", action="store_true",
                     help="enable the leader/expiry queue guard (experimental: it "
                          "traded 0 -> 1 collision on the validated 100 s case)")
+    ap.add_argument("--booking", choices=("window", "mutual"), default="window",
+                    help="window = conflict-point time-window booking (default); "
+                         "mutual = the earlier lane mutual-exclusion model")
     ap.add_argument("--net", default=NET,
                     help="SUMO net file (default scenarios/original/cross3.net.xml)")
     ap.add_argument("--flows", default=ROU,
@@ -473,7 +530,7 @@ def main():
     a = ap.parse_args()
     run(end_time=a.end, seed=a.seed, control=not a.baseline,
         granularity=a.granularity, net=a.net, flows=a.flows,
-        queue_guard=a.queue_guard)
+        queue_guard=a.queue_guard, booking=a.booking)
 
 
 if __name__ == "__main__":
