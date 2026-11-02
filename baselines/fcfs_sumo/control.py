@@ -291,11 +291,24 @@ class Controller:
         return dist < 10.0
 
     def _try_resume(self, vid, now):
-        """resume() only works once the vehicle has actually reached the stop."""
+        """resume() only succeeds once the vehicle has actually reached the stop.
+
+        Retrying blindly every step makes SUMO answer "Failed to resume ...,
+        reached: 0" for every queued vehicle on every step, which floods the log
+        and adds a TraCI round trip per vehicle per step.  The retry is therefore
+        gated on the vehicle having arrived at its stop position.
+        """
+        edge = self.tc.vehicle.getRoadID(vid)
+        lane = self.tc.vehicle.getLaneID(vid)
+        lane_len = self._lane_len.setdefault(lane, self.tc.lane.getLength(lane))
+        stop_pos = lane_len - STOP_OFFSET
+        if self.tc.vehicle.getLanePosition(vid) < stop_pos - 1.0:
+            self.pending_resume.add(vid)      # not there yet: retry quietly
+            return
         try:
             self.tc.vehicle.resume(vid)
         except Exception:
-            self.pending_resume.add(vid)      # retry next step (<= 0.1 s later)
+            self.pending_resume.add(vid)
             return
         self.pending_resume.discard(vid)
         self.events.append(("resume", now, vid))
@@ -423,6 +436,38 @@ def _collision_dict(c, now):
             "other": g("collider", "colliderID", "other")}
 
 
+def _tripinfo_stats(path):
+    """Per-run aggregates the paper needs: time loss and speed per vehicle."""
+    import xml.etree.ElementTree as ET
+    losses, speeds, durations = [], [], []
+    try:
+        root = ET.parse(str(path)).getroot()
+    except Exception:
+        return {}
+    for ti in root.findall("tripinfo"):
+        try:
+            losses.append(float(ti.get("timeLoss")))
+            dur = float(ti.get("duration"))
+            dist = float(ti.get("routeLength"))
+        except (TypeError, ValueError):
+            continue
+        if dur > 0:
+            durations.append(dur)
+            speeds.append(dist / dur)
+    try:
+        Path(path).unlink()
+    except OSError:
+        pass
+
+    def mean(xs):
+        return round(sum(xs) / len(xs), 3) if xs else None
+
+    return {"n_trips": len(losses),
+            "mean_time_loss": mean(losses),
+            "mean_trip_duration": mean(durations),
+            "mean_speed": mean(speeds)}
+
+
 def _count_episodes(collisions, gap=0.5):
     """traci reports one record per step while two vehicles overlap; group them."""
     episodes, last = [], {}
@@ -437,7 +482,7 @@ def _count_episodes(collisions, gap=0.5):
 
 def run(end_time=100.0, seed=81890, control=True, granularity="movement",
         net=NET, flows=ROU, quiet=False, queue_guard=False,
-        booking="window"):
+        booking="window", tripinfo=True):
     import traci
 
     model = ConflictModel(net_path=str(ROOT / net))
@@ -447,12 +492,19 @@ def run(end_time=100.0, seed=81890, control=True, granularity="movement",
         booker = WindowBooker(ConflictPoints(model),
                               dt_safe=DT_SAFE, v_typ=V_MAX)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+    tag = (("control" if control else "baseline")
+           + ("_" + granularity if granularity != "movement" else "")
+           + "_" + Path(net).stem + "_" + Path(flows).stem
+           + "_seed%d" % seed)
+    trip_path = OUT_DIR / ("_trip_%s.xml" % tag) if tripinfo else None
 
     cmd = ["sumo", "-n", net, "-r", flows, "-a", TYP,
            "--begin", "0", "--end", str(end_time),
            "--step-length", str(STEP), "--seed", str(seed),
            "--no-step-log", "true", "--no-warnings", "true",
            "--collision.action", "warn", "--duration-log.statistics", "true"]
+    if trip_path is not None:
+        cmd += ["--tripinfo-output", str(trip_path)]
     def say(*a):
         if not quiet:
             print(*a)
@@ -473,6 +525,7 @@ def run(end_time=100.0, seed=81890, control=True, granularity="movement",
     ctrl = Controller(model, rm, traci, queue_guard=queue_guard,
                       booker=booker) if control else None
     collisions = []
+    n_departed = n_arrived = 0
     try:
         steps = int(round(end_time / STEP))
         for _ in range(steps):
@@ -481,13 +534,22 @@ def run(end_time=100.0, seed=81890, control=True, granularity="movement",
             else:
                 traci.simulationStep()
             now = traci.simulation.getTime()
+            n_departed += traci.simulation.getDepartedNumber()
+            n_arrived += traci.simulation.getArrivedNumber()
             for c in _collisions(traci):
                 collisions.append(_collision_dict(c, now))
     finally:
         traci.close()
 
+    trips = _tripinfo_stats(trip_path) if trip_path is not None else {}
+
     out = {
         "seed": seed,
+        "net": net,
+        "flows": flows,
+        "n_departed": n_departed,
+        "n_arrived": n_arrived,
+        "tripinfo": trips,
         "end_time": end_time,
         "step_length": STEP,
         "control": control,

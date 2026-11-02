@@ -713,6 +713,48 @@ forced 车辆为 flow_ne.24 / flow_we.58 / flow_nw.40 / flow_ns.92 —— 与碰
 - 存在明确的**吞吐—安全权衡前沿**：
   放松出口余量 → 插入 1043 但偶发汇流碰撞；收紧 → 多 seed 干净但插入掉到 ~500。
 - 验收线（≥2000 且 0 碰撞）在本架构下**同时达不到**：≥2000 本身已是"停车等待式"控制的物理上限
+
+### 11.5f 作者决策 A（2026-11-02）——FCFS 基线定稿口径 + 全矩阵扫描
+
+**决策（作者 2026-11-02）**
+
+> 接受现状作为 FCFS 基线，**如实报告**；并且因为 FCFS 与其余原有基线
+> （fixed-time / MP-Light / CoLight / AttentionLight）地位相同，
+> **必须跑完全部流量（5 档密度 × 3 种车道数 × 30 seeds = 450 runs），不能只做 MedD**。
+
+**FCFS 基线的对外表述口径（以此为准，不得拔高）**
+
+| 项 | 口径 |
+|---|---|
+| 方法定位 | 预留式（reservation-based）FCFS，冲突点时间窗预约，参考 Dresner–Stone / AIM4 |
+| 机制 | 冲突点（`conflicts.py` 的 24 对交叉 + 8 对汇流）时间窗预约；`setStop` 在停止线拦停、批准后 `resume` |
+| 参数 | `Δt_safe=2.0 s`、`L_ACZ=28 m`、`EXIT_ROOM=45 m`、`A_MIN=1.0`、步长 0.1 s（命令行覆盖） |
+| 已知局限（**必须写进论文/回复**） | MedD 下约 500–630 辆被插入（无控制 2700）；约 5 个 seed 中 1 个出现**单次**出口汇流碰撞；`departPos="random"` 会产生少量无法拦停的强制放行 |
+| 为什么差 | `types.typ.xml` 的 `accel=1.0 m/s²`：停车等待后从静止走完 20 m 内部车道需 **6.32 s**，任何"停走一次"的方法都被重罚；轨迹级连续规划天然占优 |
+| 不可做的表述 | 不得写"FCFS 零碰撞"；不得把单 seed 的 0 当一般结论；不得声称 FCFS 达到无控制吞吐 |
+
+**扫描器**：`experiments/run_fcfs_sweep.py`（新增）
+
+- 规模：`3 车道数 × 5 密度 × 30 seeds = 450 runs`，每 run 1000 s / 0.1 s 步长
+- 网络映射：`lanes2→cross2`、`lanes3→cross3`、`lanes4→cross4`
+  （**lanes2 的映射是按命名推断，`cross1` 同为 2 车道，仍待作者确认**）
+- 并行：8 进程（本机 16 核）；实测最重用例 `cross4/lanes4_density5` 约 103 s/run
+- 可续跑：结果 JSON 已存在即跳过，中断后直接重跑即可
+- 产物：`results/fcfs_control/run_control_*.json`（逐 run 明细）
+  + `results/fcfs_sweep/summary.csv`（逐 run 聚合表，含
+  `mean_time_loss` / `mean_speed` / `n_departed` / `n_arrived` / `n_collisions`）
+- 指标来源：`--tripinfo-output` 逐车统计后聚合成 `mean_time_loss`、`mean_speed`，
+  XML 解析完即删除（不占仓库）
+
+**已知日志噪声（不影响结果）**
+
+运行中 SUMO 会反复打印
+`Failed to resume from stopping for vehicle '…', reached: 0`。
+原因：停止点定在车道末端前 2 m，而车辆实际停在约 0.1 m 之前，SUMO 判定"未到达"。
+已验证：加"位置门限"前后结果完全一致（510 插入 / 0 碰撞不变），
+把 `STOP_OFFSET` 改成 6 m 反而更差（239 插入 / 3 碰撞），故保留 2 m。
+**这是已知的实现噪声，不要据此判定控制器失效。**
+
   （见 11.5d 的量纲分析），而出口排队是 MedD 密度的固有属性。
 
 **留给作者的三条路**
