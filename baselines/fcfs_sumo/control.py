@@ -51,19 +51,49 @@ TYP = "scenarios/original/types.typ.xml"
 
 
 class ResourceMap:
-    """D3: one movement -> the set of lanes it must reserve."""
+    """D3: one movement -> the set of lanes it must reserve.
 
-    def __init__(self, model):
+    ``granularity``
+      ``"movement"`` (default) reserve **every** lane of the movement, i.e. all
+      six lanes of a three-lane straight movement even though one vehicle
+      traverses only one via lane and one exit lane.  Safety-wise this adds
+      nothing (the extra lanes are never entered); it only lowers throughput.
+      Kept as the default because it is the granularity approved on
+      2026-11-02 and the author asked for it to be preserved.
+
+      ``"lane"`` reserve only the ``via`` lane and the exit lane that the
+      vehicle will actually traverse, resolved from the SUMO ``connection``
+      table by its current approach-lane index.  This is the closer analogue
+      of cell/path reservation in Dresner--Stone / AIM4.
+    """
+
+    def __init__(self, model, granularity="movement"):
+        self.granularity = granularity
+        self.movements = model.movements
         self.res = {}
         self.exit_lanes = set()
+        self.lookup = {}
         for m in model.movements:
             to_lanes = {"%s_%d" % (m["to_edge"], i) for i in m["to_lanes"]}
             self.exit_lanes |= to_lanes
             self.res[m["index"]] = set(m["vias"]) | to_lanes
+        for c in model.connections:
+            self.lookup[(c["from"], c["to"], c["fromLane"])] = (
+                c["via"], c["toLane"])
         self.approach_edges = {m["from_edge"] for m in model.movements}
 
-    def of(self, movement_index):
+    def of(self, movement_index, approach_lane=None):
+        if self.granularity == "lane" and approach_lane is not None:
+            m = self.model_movement(movement_index)
+            hit = self.lookup.get((m["from_edge"], m["to_edge"], approach_lane))
+            if hit:
+                via, to_lane = hit
+                return {via, "%s_%d" % (m["to_edge"], to_lane)}
         return self.res[movement_index]
+
+    def model_movement(self, movement_index):
+        return self.movements[movement_index]
+
 
 
 class Controller:
@@ -104,8 +134,9 @@ class Controller:
                 return True
         return False
 
-    def _free(self, vid, mi, now):
-        return not any(self._lane_busy(l, vid, now) for l in self.rm.of(mi))
+    def _free(self, vid, mi, lane_i, now):
+        return not any(self._lane_busy(l, vid, now)
+                       for l in self.rm.of(mi, lane_i))
 
     def _refresh_reservations(self, active):
         """Drop reservations of vehicles that already cleared their lanes."""
@@ -184,19 +215,20 @@ class Controller:
                 continue
             if self._dist_to_stop(vid) <= L_ACZ:
                 self.request_time.setdefault(vid, now)
-                waiting.append((self.request_time[vid], vid, mi))
+                waiting.append((self.request_time[vid], vid, mi,
+                                tc.vehicle.getLaneIndex(vid)))
 
         # 2) FCFS admission (D8: key = (request_time, vehicle_id))
-        for _, vid, mi in sorted(waiting):
-            if self._free(vid, mi, now):
-                for lane in self.rm.of(mi):
+        for _, vid, mi, lane_i in sorted(waiting):
+            if self._free(vid, mi, lane_i, now):
+                for lane in self.rm.of(mi, lane_i):
                     self.reserved.setdefault(lane, vid)
                 self.granted[vid] = mi
                 if vid in self.stopped:
                     self._try_resume(vid, now)
             elif not self._stop_at_line(vid):
                 # cannot be held any more -> forced through; record it honestly
-                for lane in self.rm.of(mi):
+                for lane in self.rm.of(mi, lane_i):
                     self.reserved.setdefault(lane, vid)
                 self.granted[vid] = mi
                 self.events.append(("forced", now, vid))
@@ -243,11 +275,11 @@ def _count_episodes(collisions, gap=0.5):
     return episodes
 
 
-def run(end_time=100.0, seed=81890, control=True):
+def run(end_time=100.0, seed=81890, control=True, granularity="movement"):
     import traci
 
     model = ConflictModel()
-    rm = ResourceMap(model)
+    rm = ResourceMap(model, granularity=granularity)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
     cmd = ["sumo", "-n", NET, "-r", ROU, "-a", TYP,
@@ -262,6 +294,7 @@ def run(end_time=100.0, seed=81890, control=True):
     print("control  :", "ON" if control else "OFF (baseline)")
     print("DT_SAFE  :", DT_SAFE, "s     L_ACZ:", L_ACZ, "m     MERGE_CLEAR:",
           round(MERGE_CLEAR, 2), "m")
+    print("granularity:", granularity)
     print("resources: %d movements, %d distinct exit lanes"
           % (len(model.movements), len(rm.exit_lanes)))
     print("-" * 78)
@@ -287,6 +320,7 @@ def run(end_time=100.0, seed=81890, control=True):
         "end_time": end_time,
         "step_length": STEP,
         "control": control,
+        "granularity": granularity,
         "params": {"DT_SAFE": DT_SAFE, "L_ACZ": L_ACZ,
                    "MERGE_CLEAR": MERGE_CLEAR,
                    "STOP_OFFSET": STOP_OFFSET, "STEP": STEP},
@@ -301,7 +335,9 @@ def run(end_time=100.0, seed=81890, control=True):
         "n_forced": (sum(1 for e in ctrl.events if e[0] == "forced") if ctrl else 0),
         "events": (ctrl.events if ctrl else []),
     }
-    tag = "control" if control else "baseline"
+    tag = ("control" if control else "baseline")
+    if granularity != "movement":
+        tag += "_" + granularity
     json_path = OUT_DIR / ("run_%s_seed%d.json" % (tag, seed))
     json_path.write_text(json.dumps(out, indent=2), encoding="utf-8")
 
@@ -329,10 +365,15 @@ def main():
     ap = argparse.ArgumentParser(description="FCFS real-control execution mode")
     ap.add_argument("--end", type=float, default=100.0, help="simulation end (s)")
     ap.add_argument("--seed", type=int, default=81890)
+    ap.add_argument("--granularity", choices=("movement", "lane"),
+                    default="movement",
+                    help="reservation granularity; the default keeps the "
+                         "approved movement-level lane-set reservation")
     ap.add_argument("--baseline", action="store_true",
                     help="run without control (same seed) for A/B comparison")
     a = ap.parse_args()
-    run(end_time=a.end, seed=a.seed, control=not a.baseline)
+    run(end_time=a.end, seed=a.seed, control=not a.baseline,
+        granularity=a.granularity)
 
 
 if __name__ == "__main__":
