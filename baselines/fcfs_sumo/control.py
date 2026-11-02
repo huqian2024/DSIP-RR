@@ -42,6 +42,11 @@ L_ACZ = 28.0                     # m   D2
 STOP_OFFSET = 2.0                # m   stop this far before the approach lane end
 V_MAX = 13.9                     # m/s from types.typ.xml
 MERGE_CLEAR = V_MAX * DT_SAFE    # m   exit-lane merge window (~27.8 m)
+GRANT_TIMEOUT = 5.0             # s   implementation guard: a grant that has not
+                                #     produced a junction entry within this time is
+                                #     revoked, so no vehicle can hold a resource it
+                                #     cannot use (D8 "no hold-and-wait").  Not a
+                                #     research parameter: 5 s = 2.5 x (L_ACZ / v_max).
 STEP = 0.1                       # s   D6
 OUT_DIR = ROOT / "results" / "fcfs_control"
 
@@ -99,12 +104,16 @@ class ResourceMap:
 class Controller:
     """FCFS-by-resource admission control with setStop / resume actuation."""
 
-    def __init__(self, model, resources, traci_):
+    def __init__(self, model, resources, traci_, queue_guard=False):
         self.model = model
         self.rm = resources
         self.tc = traci_
+        self.queue_guard = queue_guard
         self.request_time = {}     # vid -> time at ACZ entry (frozen)
         self.granted = {}          # vid -> movement index
+        self.grant_time = {}       # vid -> time the grant was issued
+        self.revoked = 0
+        self.grant_count = 0       # cumulative grants issued (not the final dict size)
         self.entered = set()       # vids observed inside a junction
         self.stopped = set()       # vids we issued setStop for
         self.pending_resume = set()  # granted but stop not reached yet
@@ -112,11 +121,21 @@ class Controller:
         self.release = {}          # lane -> earliest re-use time
         self.too_close = 0
         self.events = []
+        self._lane_len = {}
+        self._route_idx = {}
 
     # ---- helpers ------------------------------------------------------
     def _dist_to_stop(self, vid):
         lane = self.tc.vehicle.getLaneID(vid)
-        return self.tc.lane.getLength(lane) - self.tc.vehicle.getLanePosition(vid)
+        if lane not in self._lane_len:
+            self._lane_len[lane] = self.tc.lane.getLength(lane)
+        return self._lane_len[lane] - self.tc.vehicle.getLanePosition(vid)
+
+    def _movement_of(self, vid):
+        rid = self.tc.vehicle.getRouteID(vid)
+        if rid not in self._route_idx:
+            self._route_idx[rid] = self.model.index_of_route(rid)
+        return self._route_idx[rid]
 
     def _lane_busy(self, lane, me, now):
         if now < self.release.get(lane, -1.0):
@@ -156,6 +175,38 @@ class Controller:
                     continue                  # still inside the merge window
             self.reserved.pop(lane, None)
             self.release[lane] = now + DT_SAFE
+
+    def _revoke_stale_grants(self, active, now):
+        """D8 no hold-and-wait: drop grants that never turned into an entry."""
+        if not self.queue_guard:
+            return
+        for vid, t_grant in list(self.grant_time.items()):
+            if vid not in active:
+                self.grant_time.pop(vid, None)
+                self.granted.pop(vid, None)
+                continue
+            if vid in self.entered or now - t_grant <= GRANT_TIMEOUT:
+                continue
+            self.grant_time.pop(vid, None)
+            self.granted.pop(vid, None)
+            self.revoked += 1
+            for lane, owner in list(self.reserved.items()):
+                if owner == vid:
+                    self.reserved.pop(lane, None)
+                    self.release[lane] = now + DT_SAFE
+            self.events.append(("revoked", now, vid))
+
+    def _blocked_by_leader(self, vid):
+        """True if a non-granted vehicle is queued directly ahead of vid."""
+        if not self.queue_guard:
+            return False
+        lead = self.tc.vehicle.getLeader(vid, 30.0)
+        if lead is None:
+            return False
+        lead_id, dist = lead
+        if lead_id in self.granted:
+            return False                      # it is already moving on
+        return dist < 10.0
 
     def _try_resume(self, vid, now):
         """resume() only works once the vehicle has actually reached the stop."""
@@ -201,6 +252,7 @@ class Controller:
             if tc.vehicle.getRoadID(v).startswith(":"):
                 self.entered.add(v)
         self._refresh_reservations(active)
+        self._revoke_stale_grants(active, now)
 
         # 1) ACZ request registration (D2): first time inside L_ACZ
         waiting = []
@@ -210,7 +262,7 @@ class Controller:
             edge = tc.vehicle.getRoadID(vid)
             if edge.startswith(":") or edge not in self.rm.approach_edges:
                 continue
-            mi = self.model.index_of_route(tc.vehicle.getRouteID(vid))
+            mi = self._movement_of(vid)
             if mi is None:
                 continue
             if self._dist_to_stop(vid) <= L_ACZ:
@@ -220,10 +272,15 @@ class Controller:
 
         # 2) FCFS admission (D8: key = (request_time, vehicle_id))
         for _, vid, mi, lane_i in sorted(waiting):
+            if self._blocked_by_leader(vid):
+                self._stop_at_line(vid)
+                continue
             if self._free(vid, mi, lane_i, now):
                 for lane in self.rm.of(mi, lane_i):
                     self.reserved.setdefault(lane, vid)
                 self.granted[vid] = mi
+                self.grant_time[vid] = now
+                self.grant_count += 1
                 if vid in self.stopped:
                     self._try_resume(vid, now)
             elif not self._stop_at_line(vid):
@@ -231,6 +288,7 @@ class Controller:
                 for lane in self.rm.of(mi, lane_i):
                     self.reserved.setdefault(lane, vid)
                 self.granted[vid] = mi
+                self.grant_time[vid] = now
                 self.events.append(("forced", now, vid))
 
         # 3) retry releases that were blocked before the stop was reached
@@ -275,32 +333,37 @@ def _count_episodes(collisions, gap=0.5):
     return episodes
 
 
-def run(end_time=100.0, seed=81890, control=True, granularity="movement"):
+def run(end_time=100.0, seed=81890, control=True, granularity="movement",
+        net=NET, flows=ROU, quiet=False, queue_guard=False):
     import traci
 
-    model = ConflictModel()
+    model = ConflictModel(net_path=str(ROOT / net))
     rm = ResourceMap(model, granularity=granularity)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    cmd = ["sumo", "-n", NET, "-r", ROU, "-a", TYP,
+    cmd = ["sumo", "-n", net, "-r", flows, "-a", TYP,
            "--begin", "0", "--end", str(end_time),
            "--step-length", str(STEP), "--seed", str(seed),
            "--no-step-log", "true", "--no-warnings", "true",
            "--collision.action", "warn", "--duration-log.statistics", "true"]
-    print("=" * 78)
-    print("FCFS REAL-CONTROL run   (D1-D8 from docs/decisions/fcfs-parameters.md)")
-    print("=" * 78)
-    print("cmd      :", " ".join(cmd))
-    print("control  :", "ON" if control else "OFF (baseline)")
-    print("DT_SAFE  :", DT_SAFE, "s     L_ACZ:", L_ACZ, "m     MERGE_CLEAR:",
-          round(MERGE_CLEAR, 2), "m")
-    print("granularity:", granularity)
-    print("resources: %d movements, %d distinct exit lanes"
-          % (len(model.movements), len(rm.exit_lanes)))
-    print("-" * 78)
+    def say(*a):
+        if not quiet:
+            print(*a)
+
+    say("=" * 78)
+    say("FCFS REAL-CONTROL run   (D1-D8 from docs/decisions/fcfs-parameters.md)")
+    say("=" * 78)
+    say("cmd      :", " ".join(cmd))
+    say("control  :", "ON" if control else "OFF (baseline)")
+    say("DT_SAFE  :", DT_SAFE, "s     L_ACZ:", L_ACZ, "m     MERGE_CLEAR:",
+        round(MERGE_CLEAR, 2), "m")
+    say("granularity:", granularity)
+    say("resources: %d movements, %d distinct exit lanes"
+        % (len(model.movements), len(rm.exit_lanes)))
+    say("-" * 78)
 
     traci.start(cmd)
-    ctrl = Controller(model, rm, traci) if control else None
+    ctrl = Controller(model, rm, traci, queue_guard=queue_guard) if control else None
     collisions = []
     try:
         steps = int(round(end_time / STEP))
@@ -329,15 +392,16 @@ def run(end_time=100.0, seed=81890, control=True, granularity="movement"):
         "collision_episodes": _count_episodes(collisions),
         "collisions": collisions,
         "n_requests": len(ctrl.request_time) if ctrl else 0,
-        "n_granted": len(ctrl.granted) if ctrl else 0,
+        "n_granted": (ctrl.grant_count if ctrl else 0),
         "n_stopped": len(ctrl.stopped) if ctrl else 0,
         "n_too_close": ctrl.too_close if ctrl else 0,
         "n_forced": (sum(1 for e in ctrl.events if e[0] == "forced") if ctrl else 0),
+        "n_revoked": (ctrl.revoked if ctrl else 0),
         "events": (ctrl.events if ctrl else []),
     }
-    tag = ("control" if control else "baseline")
-    if granularity != "movement":
-        tag += "_" + granularity
+    tag = (("control" if control else "baseline")
+           + ("_" + granularity if granularity != "movement" else "")
+           + "_" + Path(net).stem + "_" + Path(flows).stem)
     json_path = OUT_DIR / ("run_%s_seed%d.json" % (tag, seed))
     json_path.write_text(json.dumps(out, indent=2), encoding="utf-8")
 
@@ -347,16 +411,17 @@ def run(end_time=100.0, seed=81890, control=True, granularity="movement"):
         w.writerow(["action", "time", "vehicle_id"])
         w.writerows(out["events"])
 
-    print("collisions (episodes) :", out["n_collisions"],
-          "  [%d per-step records]" % out["n_collision_records"])
+    say("collisions (episodes) :", out["n_collisions"],
+        "  [%d per-step records]" % out["n_collision_records"])
     for c in out["collision_episodes"]:
-        print("   t=%6.2f lane=%-16s %s vs %s"
-              % (c["time"], c["lane"], c["victim"], c["other"]))
+        say("   t=%6.2f lane=%-16s %s vs %s"
+            % (c["time"], c["lane"], c["victim"], c["other"]))
     if ctrl:
-        print("requests / granted    : %d / %d" % (out["n_requests"], out["n_granted"]))
-        print("vehicles held at line :", out["n_stopped"])
-        print("too-close / forced    : %d / %d" % (out["n_too_close"], out["n_forced"]))
-    print("artefacts             :", json_path.name, "/", csv_path.name)
+        say("requests / granted    : %d / %d" % (out["n_requests"], out["n_granted"]))
+        say("vehicles held at line :", out["n_stopped"])
+        say("too-close / forced    : %d / %d" % (out["n_too_close"], out["n_forced"]))
+        say("grants revoked        :", out["n_revoked"])
+    say("artefacts             :", json_path.name, "/", csv_path.name)
     print("=" * 78)
     return out
 
@@ -371,9 +436,17 @@ def main():
                          "approved movement-level lane-set reservation")
     ap.add_argument("--baseline", action="store_true",
                     help="run without control (same seed) for A/B comparison")
+    ap.add_argument("--queue-guard", action="store_true",
+                    help="enable the leader/expiry queue guard (experimental: it "
+                         "traded 0 -> 1 collision on the validated 100 s case)")
+    ap.add_argument("--net", default=NET,
+                    help="SUMO net file (default scenarios/original/cross3.net.xml)")
+    ap.add_argument("--flows", default=ROU,
+                    help="SUMO route file (default scenarios/original/routes.rou.xml)")
     a = ap.parse_args()
     run(end_time=a.end, seed=a.seed, control=not a.baseline,
-        granularity=a.granularity)
+        granularity=a.granularity, net=a.net, flows=a.flows,
+        queue_guard=a.queue_guard)
 
 
 if __name__ == "__main__":
