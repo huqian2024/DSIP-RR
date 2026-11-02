@@ -137,22 +137,37 @@ def test_engine(model):
 
 
 def test_no_control_calls():
-    """Static guard: the package must not contain any actuation call."""
+    """Static guard.
+
+    The original intent -- "the shadow path never actuates a vehicle" -- must
+    still hold now that ``control.py`` exists as a *deliberate* control mode.
+    Rather than widening the allow-list (which would let actuation leak back
+    into the shadow path unnoticed), the guard is made more precise:
+
+    1. every module except the control mode and this test is actuation-free;
+    2. ``runner.py`` (the shadow entry point) is getters-only;
+    3. ``control.py`` really does contain the two calls it claims to use.
+    """
     banned = ("setSpeed(", "slowDown(", "setStop(", "moveTo(", "moveToXY(",
               "changeLane(", "setLaneChangeMode(", "setSpeedMode(")
-    hits = []
-    for py in sorted((ROOT / "baselines" / "fcfs_sumo").glob("*.py")):
-        if py.name in ("test_logic.py", "runner.py"):
-            continue          # runner is checked for getters only, see below
-        text = py.read_text(encoding="utf-8")
-        for token in banned:
-            if token in text:
-                hits.append("%s:%s" % (py.name, token))
-    check("no vehicle-actuation call in the package", not hits, str(hits))
+    pkg = ROOT / "baselines" / "fcfs_sumo"
+    control = "control.py"
 
-    runner = (ROOT / "baselines" / "fcfs_sumo" / "runner.py").read_text(encoding="utf-8")
+    hits = []
+    for py in sorted(pkg.glob("*.py")):
+        if py.name in ("test_logic.py", control):
+            continue
+        text = py.read_text(encoding="utf-8")
+        hits += ["%s:%s" % (py.name, token) for token in banned if token in text]
+    check("actuation confined to control.py", not hits, str(hits))
+
+    runner = (pkg / "runner.py").read_text(encoding="utf-8")
     used = [t for t in banned if t in runner]
     check("runner.py contains no actuation call either", not used, str(used))
+
+    ctl = (pkg / control).read_text(encoding="utf-8")
+    check("control.py does call setStop and resume",
+          ("setStop(" in ctl) and ("resume(" in ctl), "")
 
 
 def main():

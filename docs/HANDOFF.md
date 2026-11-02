@@ -1,22 +1,26 @@
 # HANDOFF — DSIP-RR 当前状态交接
 
-- 更新日期：**2026-11-01**（Task 05 checkpoint；Task 01–04 的完成记录见 §10）
+- 更新日期：**2026-11-02**（Task 06 checkpoint：审稿意见、口径对齐、FCFS 真实控制；Task 01–05 的记录见 §10）
 - 本文档是**当前唯一权威的资产与边界说明**。与它冲突的旧报告一律作废（见 §4）。
 
-> ## 🚩 当前状态（2026-11-01）
+> ## 🚩 当前状态（2026-11-02）
 >
 > | 事项 | 状态 |
 > |---|---|
 > | SUMO 环境（工作区内相对路径场景） | **已验证可运行**（Task 02/03/04 三次运行一致） |
-> | TraCI 通路（traci 1.24.0 ↔ SUMO 1.12.0，协议 v20） | **已验证（仅读取）** |
+> | 0.1 s 步长运行 | **已验证**（命令行 `--step-length 0.1` 覆盖，**不新建 cfg**；`departInterval` 在 SUMO 1.12.0 下被接受） |
+> | TraCI 通路（traci 1.24.0 ↔ SUMO 1.12.0，协议 v20） | **已验证（含写入）**：`setStop` / `resume` 在 0.1 s 下生效 |
 > | FCFS **Shadow Mode**（只算决策、不控制车辆） | **已完成**（`baselines/fcfs_sumo/`） |
-> | FCFS **Baseline 复现** | **❌ 未完成**（尚无任何车辆控制代码；无性能实验） |
+> | FCFS **真实控制（单 run 验证）** | **✅ 已跑通**：`baselines/fcfs_sumo/control.py`；seed 81890、100 s 下 **无控制 2 次碰撞 → 控制 0 次** |
+> | FCFS **完整基线复现（30 seeds × 5 密度 × 3 车道）** | **❌ 未开始**（仅单 run 验证，无性能矩阵） |
 > | CCAM-DI / DSIP 复现 | **❌ 未开始**（无源码、无权重） |
-> | 论文 LaTeX 审计（AGENTS §4） | **❌ 未开始**（无投稿 PDF、无审稿意见、本机无 LaTeX） |
+> | 审稿意见 | **✅ 已获取并归档**（EIC + R1 Reject + R2 Major Revision；见 §11） |
+> | 论文 LaTeX 审计（AGENTS §4） | **部分完成**：审稿矩阵 + 口径一致性表已建；本机无 LaTeX，**由作者云端编译** |
 >
-> **两条红线（必须随结果一起引用）**
-> 1. **当前仅完成 Shadow Mode，没有完成 FCFS Baseline 复现。** Shadow 的"决策与实际行为冲突"是**未施加控制**的必然诊断，**不是碰撞，也不是 FCFS 失效**。
-> 2. **冲突矩阵是 provisional**（几何推导 + 无 `<request>/foes` 的网络），**不得当作经过验证的安全判据**；`collision.check-junctions` 未启用，"无碰撞告警"不构成安全证据。
+> **三条红线（必须随结果一起引用）**
+> 1. **FCFS 只完成"单 run 验证"，不是"基线复现"。** 目前只证明"控制机制能消掉已观测到的出口汇流碰撞"，**没有任何性能矩阵、没有 30 seeds、没有多密度**。
+> 2. **冲突矩阵是 provisional**（几何推导 + 无 `<request>/foes` 的网络）。当前控制用的是**车道级资源**（内部 via 车道 ∪ 出口车道），这一点是结构性的；但"资源不相交即安全"仍只在已实测的运行上成立，未被证明为一般结论。
+> 3. **FCFS 的保守度是人为设定的**（D1 `Δt_safe=2.0 s`、D2 `L_ACZ=28 m`、D3 整组 movement 车道全预约）。单 run 中 80 辆车只完成约 21 辆，**延误偏高**——这是保守上界，不能当作 FCFS 的最好表现。
 
 ---
 
@@ -374,6 +378,11 @@ python3 -m baselines.fcfs_sumo.analyze_shadow  # 对产出的 CSV 做二次分�
    缺失时校验降级为 `SKIP`/`found=False`，冲突模型本身仍正常构建（已实测）。
 8. TraCI **写接口未验证**：`setSpeed`/`slowDown`/`setStop`/`resume` 的真实生效窗口与安全校核尚未实测。
 9. **车道数 ↔ 4/6/8 映射**未确认（`cross1` 与 `cross2` 都是每进口 2 车道）；U-turn 连接存在但未建模。
+10. **出口车道汇流会产生真实碰撞**（2026-11-01 新发现）：用 `scenarios/flows/` 的 15 组车流在**无控制**
+    条件下运行，全部文件在 100 s 内都出现 SUMO 碰撞（默认 teleport），且 **100% 发生在出口车道**
+    （`center2north/south/east/west`），交叉口内部（`:center_*`）为 0；1 s 与 0.1 s 步长下都出现。
+    碰撞对与 Task 04 的 8 对"共享出口车道"完全对应。后果：这些"无控制"运行**不能**当作零碰撞基线；
+    FCFS 的资源必须覆盖**出口汇流**，而非仅交叉口内部通过。详见 `scenarios/flows/README.md`。
 
 ### 10.5 未验证假设（不得据以修改论文或实验）
 
@@ -392,7 +401,12 @@ python3 -m baselines.fcfs_sumo.analyze_shadow  # 对产出的 CSV 做二次分�
   左(右)转 240/300/384/480/600（2/4 车道列仅整数取整差 ±12）。
 - 现有 `routes.rou.xml`（直 100 / 转 50、间隔 10 s/20 s、`end=1000`）用的是第 5 档的数字但摊在 1000 s 上，
   实际密度约为 MaxD 的 1/10（直行约 120 veh/(h·lane)，MinD 为 480）。
-- **15 组车流文件按作者指示挂起，未生成任何文件。** `routes.txt` 仍为未跟踪状态（按作者要求不提交）。
+- **15 组车流已于 2026-11-01 生成**（作者当日指示，此前为挂起状态）：
+  `scenarios/flows/lanes{2,3,4}_density{1..5}.rou.xml` + 生成脚本 `generate_flows.py` + `README.md`。
+  生成后 15 个文件均通过 SUMO 1.12.0 加载校验（rc=0），并用独立校验脚本
+  `scenarios/flows/validate_flows.py` 复核数量/间隔/比例（15/15 OK）。`routes.txt` 仍为未跟踪状态（按作者要求不提交）。
+- `lanes3_*` 一列与 Table I 的 S 值（480/600/768/960/1200）精确吻合；2/4 车道列相差 ±12（整数取整）。
+- 尚未决定：步长（1 s vs 0.1 s）、σ 是否保持 1 s、`departLane` 是否改 `best`、车道数 ↔ 网络文件映射。
 
 ### 10.7 进入真实 FCFS 控制前必须解决的技术问题（按阻断程度排序）
 
@@ -425,4 +439,74 @@ python3 -m baselines.fcfs_sumo.analyze_shadow  # 对产出的 CSV 做二次分�
   - `scenarios/original/*` —— 原始资产，未修改、未新增
   - `paper/reviews/` —— 审稿材料，`.gitignore` 已排除
   - 本机环境信息、绝对路径产物、模型权重 —— 从未生成或已忽略
+
+
+---
+
+## 11. Task 06（2026-11-02）：审稿意见、口径对齐、FCFS 真实控制
+
+### 11.1 审稿意见已到位
+
+- 材料：`paper/reviews/EIC and review 1.docx`、`paper/reviews/review 2.pdf`（**`.gitignore` 排除，不入库**）
+- 纯文本抽取件：`paper/reviews/_extracted/`（同样不入库）。方法：
+  `soffice --headless --convert-to txt:Text "EIC  and review 1.docx"` + `pdftotext -layout "review 2.pdf"`
+- 结论：EIC = Revise & Resubmit（**90 天**）；**R1 = Reject**（3 major + 4 minor）；**R2 = Major Revision**（10 条）
+- **两位审稿人都没有要求消融实验** → "默认不做消融"的边界继续有效
+- 逐条追溯：`docs/audits/reviewer-issue-matrix.md`
+
+### 11.2 论文口径 ↔ 工作区 一致性（作者口径：以工作区为唯一可证来源）
+
+- `docs/audits/paper-workspace-consistency.md`：25 条判定（10 MATCH / 5 待闭合 / 8 NOT VERIFIABLE / 2 随步长而定）
+- **作者更正（2026-11-02）**：论文表述与 `scenarios/original/` 的文件**是吻合的**；
+  原判的 5 条"冲突"应理解为"**文件是基座配置，实跑由命令行/脚本覆盖**"，已降级为"待运行侧闭合"
+- 已核：`git log -- scenarios/original paper/submitted` 只有 `e41abb1` 一条；
+  `git diff e41abb1 -- …` 为空 ⇒ **投稿版资产自导入后零改动**
+
+### 11.3 作者确认的口径
+
+| 项 | 值 | 出处 |
+|---|---|---|
+| 仿真步长 | **0.1 s**（命令行覆盖，不新建 cfg） | 作者口述 2026-11-02 |
+| 信号配时 | **Table II 那一套**（4 相 20/40 + 右转按规则放行）；net 里的 2×42 s 是 netconvert 默认程序 | 同上 |
+| 30 个 seed | **81890 … 81919**（连续 30 个） | 作者口述；已落 `experiments/seeds_30.txt` |
+| FCFS 参数 D1–D10 | **全部按推荐值** | `docs/decisions/fcfs-parameters.md` §0.0 |
+| 改动原则 | **改动最小**：不动 `scenarios/original/`、不新建场景文件、新增代码只加"执行模式" | 作者口述 |
+
+### 11.4 FCFS 真实控制（新增 `baselines/fcfs_sumo/control.py`）
+
+- **纯增量**：不修改 `conflicts.py` / `tracker.py` / `queue.py` / `shadow.py` 的任何语义
+- 实现 D1–D8：`Δt_safe=2.0 s`、`L_ACZ=28 m`、资源 = 内部 via 车道 ∪ 出口车道、
+  清空 = 观测无车 ∧ `now ≥ release+Δt_safe`、`setStop` 到停止线−2 m / 批准后 `resume`、
+  排队键 `(request_time, vehicle_id)`、不 hold-and-wait
+- 运行：`python3 -m baselines.fcfs_sumo.control [--baseline] [--end 100] [--seed 81890]`
+- 产物：`results/fcfs_control/run_{control,baseline}_seed*.json` + `events_*.csv`（可再生产物，不入库）
+
+**A/B 结果（同 seed 81890、同 0.1 s、同未改动资产、100 s）**
+
+| 指标 | 无控制 | FCFS 控制 |
+|---|---|---|
+| 碰撞事件（去重后） | **2**（14 条逐步记录） | **0** |
+| 碰撞位置 | `center2south_0`（出口汇流；`flow_ws.0` vs `flow_ns.0`、`flow_ns.6` vs `flow_ws.3`） | — |
+| 请求 / 批准 | — | 58 / 29 |
+| 被拦在停止线 | — | 40 |
+| 无法拦停（forced） | — | 2 |
+| 100 s 内完成行程 | 74 | 约 21 |
+
+### 11.5 已发现但**未处理**的问题（下阶段必须先解决）
+
+1. **FCFS 过保守，吞吐塌得厉害**（74 → 约 21 辆完成）。
+   根因：一个 movement 的所有 via 车道被整组预约，但一辆车实际只用其中一条。
+   **最小修法**：按 `connection` 的 `fromLane→via/toLane` 映射，为每辆车只预约它**实际会用的**一组车道。
+2. **单 run 不足以当基线**：仍需 30 seeds × 5 密度 × 3 车道；车道数↔net 映射（`cross1` vs `cross2`）仍未确认。
+3. `--collision.check-junctions` 仍未启用；当前"0 碰撞"仅指 SUMO 的车辆碰撞检测。
+4. 本机无 LaTeX；页数与公式渲染由作者在云端编译确认。
+
+### 11.6 Git（Task 06 checkpoint）
+
+- 纳入版本控制：`docs/HANDOFF.md`（本次）、`docs/audits/reviewer-issue-matrix.md`、
+  `docs/audits/paper-workspace-consistency.md`、`docs/decisions/fcfs-parameters.md`、
+  `baselines/fcfs_sumo/control.py`、`experiments/seeds_30.txt`
+- 明确未提交：`results/**`（可再生）、`paper/reviews/**`（私人材料，`.gitignore` 排除）、
+  `scenarios/original/routes.txt`（按作者要求未跟踪）
+- 未改写任何历史；未 push
 
