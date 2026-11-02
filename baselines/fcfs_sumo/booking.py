@@ -49,8 +49,11 @@ from shapely.geometry import LineString, Point
 DT_SAFE_DEFAULT = 2.0
 V_DEFAULT = 13.9          # m/s, scenarios/original/types.typ.xml maxSpeed
 A_MAX = 1.0               # m/s^2, types.typ.xml accel  (best case)
-A_MIN = 0.5               # m/s^2, effective floor (accel 1.0 halved: queueing,
+A_MIN = 1.0               # m/s^2, effective floor (accel 1.0 halved: queueing,
                           # junction friction); used for the late bound only
+MERGE_CLEAR_DEFAULT = 27.8  # m  = v_max * dT_safe: how far past the merge point a
+                            #     vehicle must travel before the exit-lane head
+                            #     is considered free again
 COORD_ROUND = 1           # decimals used to make crossing keys agree
 MAX_ETA = 30.0            # s, ignore vehicles further than this in time
 
@@ -162,10 +165,12 @@ def _points_of(geom):
 class WindowBooker:
     """Time-window reservations on conflict points."""
 
-    def __init__(self, points, dt_safe=DT_SAFE_DEFAULT, v_typ=V_DEFAULT):
+    def __init__(self, points, dt_safe=DT_SAFE_DEFAULT, v_typ=V_DEFAULT,
+                 merge_clear=MERGE_CLEAR_DEFAULT):
         self.pts = points
         self.dt_safe = dt_safe
         self.v_typ = v_typ
+        self.merge_clear = merge_clear
         self.book = {}          # key -> [(t0, t1)]
         self.n_grant = 0
         self.n_reject = 0
@@ -205,7 +210,7 @@ class WindowBooker:
                          now + tt(d, A_MIN) + self.dt_safe))
         plan.append((("merge", "%s_%d" % (m["to_edge"], to_lane)),
                      now + tt(via_len, A_MAX),
-                     now + tt(via_len, A_MIN) + self.dt_safe))
+                     now + tt(via_len + self.merge_clear, A_MIN) + self.dt_safe))
         return plan
 
     # ---- admission ----------------------------------------------------

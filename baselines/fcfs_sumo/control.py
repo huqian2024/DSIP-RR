@@ -46,6 +46,13 @@ MERGE_CLEAR = V_MAX * DT_SAFE    # m   exit-lane merge window (~27.8 m)
 HEAD_LOOKAHEAD = 12.0           # m   a vehicle with a leader closer than this on
                                 #     its lane is NOT the lane head, so it is left
                                 #     to IDM car-following instead of being stopped
+EXIT_ROOM = 45.0                # m   free space required at the head of the target
+                                #     exit lane before a vehicle is admitted.  With
+                                #     accel=1.0 / decel=4.5 a vehicle that has to
+                                #     brake inside the junction either stops there
+                                #     (blocking crossing points) or ends up late
+                                #     for its booked merge; both were observed.
+                                #     Implementation guard, not a research value.
 GRANT_TIMEOUT = 5.0             # s   implementation guard: a grant that has not
                                 #     produced a junction entry within this time is
                                 #     revoked, so no vehicle can hold a resource it
@@ -236,6 +243,19 @@ class Controller:
                 return False
         return True
 
+    def _exit_has_room(self, mi, lane_i):
+        """Downstream room on the target exit lane (see EXIT_ROOM)."""
+        hit = self.booker.pts.via_of.get((mi, lane_i))
+        if hit is None:
+            return True
+        _via, to_lane = hit
+        m = self.model.movements[mi]
+        exit_lane = "%s_%d" % (m["to_edge"], to_lane)
+        head = float("inf")
+        for v in self.tc.lane.getLastStepVehicleIDs(exit_lane):
+            head = min(head, self.tc.vehicle.getLanePosition(v))
+        return head >= EXIT_ROOM
+
     def _try_book(self, vid, mi, lane_i, now):
         """Time-window admission (conflict points); True if booked.
 
@@ -248,6 +268,8 @@ class Controller:
         """
         dist = self._dist_to_stop(vid)
         speed = self.tc.vehicle.getSpeed(vid)
+        if not self._exit_has_room(mi, lane_i):
+            return False
         plan = self.booker.plan(mi, lane_i, now, dist, speed)
         if plan is None:
             return False
