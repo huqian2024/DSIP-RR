@@ -61,14 +61,65 @@ The mission is to prepare a **traceable, scientifically defensible R&R resubmiss
 - **No density matrix, seed list, step-length override, metric computation, or `net`↔lane-count mapping may be inferred from outside assets or from earlier audit rounds.** Those earlier derivations are void (Section 0.8).
 - If a research decision needs such a parameter, treat it as **NOT VERIFIED** and ask the author instead of reconstructing it.
 
+### Scoped network authorization (added 2026-11-07)
+
+Supersedes the blanket prohibition of §0.5 **only** for the two repositories named below. The author explicitly authorized cloning them, and only them, into `third_party/_local/` inside this workspace:
+
+| Repository | Branch | Pinned commit | License file |
+|---|---|---|---|
+| `https://github.com/JingtianYan/PSB-RAL.git` | `main` | `0b3f6eb34bf69a6d6d6a0fc2db5505073c90af24` | **none in repo** |
+| `https://github.com/theanhhoang/AIM.git` | `AAAI22_PBS-SIPP` | `5686e15092fd95a46309a118655a5ab0c23c60fa` | **none in repo** |
+| `https://github.com/yoraish/mmd.git` | (pin at clone) | pin at clone; record in `third_party/UPSTREAMS.md` §5 | (not yet audited) |
+
+Rules that remain in force:
+
+- These clones are **local-only**. `.gitignore` (`third_party/*/`) must keep them out of version control; do not add submodules without a new explicit instruction.
+- **Neither upstream has a license file, so neither may be redistributed.** Do not copy their sources into any published part of this repository; cite the papers and URLs only.
+- Upstream checkouts must stay **pristine**. All adaptation code belongs in `baselines/psb_sumo/`, `baselines/psl_sumo/`, `baselines/common/`; builds must be out-of-source.
+- The authorization does **not** extend to any other repository, download, model weight, or dataset. See `third_party/UPSTREAMS.md` for the full record.
+
 ### Agreed supplementary work
 
-- **AIM baseline 1:** FCFS reservation-based intersection management, referencing the Dresner–Stone / AIM4 approach.
-- **AIM baseline 2:** CCAM-DI, evaluating feasibility of adaptation from its existing SUMO-based environment.
+Baseline structure (decision of 2026-11-07; see `docs/baselines/baseline-strategy.md`):
+
+| Runtime | Method | Role | Status entering this round |
+|---|---|---|---|
+| L1 | **DSIP** | This study's method | historical results only; source/weights missing |
+| L2 | **FCFS** conflict-point reservation (Dresner–Stone inspired, **not** an AIM4 tile reproduction) | traditional reservation AIM | implemented, **12 audited defects**, sweep interrupted |
+| L3 | **PSL** (Priority-Based Search + SIPP + LP) | core optimization baseline | cloned; **cannot compile (no CPLEX)**; prebuilt binary to be tested |
+| L4 | **PSB** (Priority-Based Search + SIPP + Bézier kinodynamic optimisation) | core optimization baseline | cloned; **cannot compile, no prebuilt binary (no CPLEX)** |
+| Reference | **Fixed-time signal control** (`tls2/3/4.net.xml`) | traditional control | assets available; not yet run |
+| Optional | **CCAM-DI** (RL) | optional RL baseline | **not implemented this round** |
+
+- **FCFS** is retained and must be *corrected*, not replaced; its conservative parameters are documented in `docs/decisions/fcfs-parameters.md`.
+- **PSL and PSB** are the highest-priority new work. Reproduce them **as published first** (upstream, unmodified), then adapt to SUMO in our own directory.
+- **CCAM-DI** is explicitly deprioritised this round; do not sneak it in.
 - **Literature:** add and discuss Klimke et al., *“A Real-World Evaluation of Two Cooperative Intersection Management Approaches,”* DOI **10.1109/MITS.2025.3643199**. No official drop-in reproduction code has yet been established; do not assert definitively that no code exists. Do not claim DSIP empirically outperforms that method without matched experiments.
 - **Traffic-turning-demand sensitivity:** supplementary DSIP tests with varying left/straight/right movement ratios, **only after reconstruction has been validated**.
 - **Small optional/targeted studies:** CBS planning-time distribution/timeouts, modest communication latency/jitter, and trajectory feasibility checks when the recovered system supports valid tests.
 - **Out of scope unless explicitly authorized:** new diffusion architecture, changed CBS search, new traffic-planning mechanism, full-scale mixed-traffic deployment, broad ablation matrices.
+
+### Staged experiment gates (added 2026-11-07, binding)
+
+Mass runs are forbidden by default. Every stage must stop, save evidence, and wait for the author.
+
+| Stage | Content | Gate |
+|---|---|---|
+| 0 | repository + environment audit, no simulation | report only |
+| 1 | clone + license/dependency audit + original compile | stop; CPLEX decision needed |
+| 2 | **one** small upstream sample per algorithm | stop |
+| 3 | FCFS correctness repair + unit tests, low density only | stop |
+| 4 | SUMO adaptation for one lane config, 1–3 seeds | stop |
+| 5 | pilot: 1 lane config × 1 density × 3–5 seeds | stop |
+| 6 | widen **one dimension at a time** (seeds → densities → lane configs) | stop per step |
+
+Hard prohibitions in this round:
+
+- **Do not** launch the 450-run FCFS sweep (30 seeds × 5 densities × 3 lanes) without a new explicit instruction.
+- **Do not** run `third_party/_local/AIM-PSL/Controller/controller.py` — it performs ~100 simulations × 6 fleet sizes × 3 methods.
+- **Do not** run PSB/PSL parameter matrices before Stage 2 passes.
+- **Do not** loosen collision checks, safety gaps, or vehicle kinematics to obtain better numbers.
+- **Known hard blocker:** IBM ILOG CPLEX is **not installed** on this machine and both upstreams hard-code its path; PSB cannot be compiled at all and PSL cannot be recompiled. See `third_party/UPSTREAMS.md` §3. Do not silently swap in another solver.
 
 ## 3. Repository layout and provenance
 
@@ -265,13 +316,26 @@ Use line plots only when showing temporal behavior is necessary.
 ## 7. Experiment and reconstruction rules
 
 1. **Scenario-first.** The author confirms all original SUMO experiment XML files, including route/flow XML, are available. Inventory and hash every `.sumocfg` and referenced `.net.xml`, `.rou.xml`, `.add.xml`; inspect vehicle types, traffic-light programs, speed limits, junction priorities, step lengths, seeds, and demand-generator assumptions. Never infer missing values from filenames. Do not generate replacements unless a file is actually missing or a new sensitivity condition requires it.
-2. **Baseline-first, DSIP reconstruction secondary.** Prioritize FCFS and CCAM-DI experiments. Upstream MMD has previously run locally for the author; do not spend revision time re-proving this without a concrete need. Pin MMD and reconstruct only the paper-described DSIP functionality needed for specific supplement tests, after assessing baseline status. Keep reconstruction in `src/dsip_reconstructed/`; never label it the original DSIP implementation or redesign the CBS core.
+2. **Baseline-first; DSIP reconstruction authorized 2026-11-07 under strict constraints.** FCFS and the optimisation baselines remain required, but the author has now explicitly authorized reconstructing DSIP itself (see the block below). The reconstruction must follow the recovered technical route — `EnvEmptyNoWait2D-RobotPlanarDisk` prior + MMD-xECBS including Experience Reuse — not a newly invented method. Keep it in `src/dsip_reconstruction/`; never label it the original DSIP implementation, and never redesign the coordination core.
 3. **Validate before using reconstructed DSIP as evidence.** First test original 1:2:1 scenarios for route legality, traffic behavior, safety, metrics, and broad agreement with the paper. Report deviations explicitly. Do not promise an exact match when checkpoint, code, and old route-generation history are unavailable.
 4. **Baseline fidelity.** Implement FCFS reservation logic based on the cited method; verify CCAM-DI on its native environment before adapting to DSIP maps. Record each adaptation and any retraining. Do not call a loose approximation an exact reproduction.
 5. **Fairness.** Run methods on the same saved route/departure files and common seeds when feasible; compare lane geometry, CAV assumptions, input demand, horizon, definitions of time loss, evaluated vehicle populations, and control/actuation differences. Identical seed numbers **do not** guarantee identical random streams across implementations.
 6. **Separate original and new evidence.** Label output by implementation, upstream commit, experiment configuration, SUMO version, seed, date, and metric definition. Preserve historical manuscript numbers as historical claims, not newly verified results.
 7. **Safety and feasibility.** GUI observation or absent SUMO collision warnings alone does not establish non-holonomic vehicle feasibility. If additional safety evidence is requested, inspect trajectories and junction detection configuration; report what is measured and what remains unverified.
 8. **Prioritized experiments:** (a) FCFS + CCAM-DI baselines, (b) turning-ratio sensitivity using validated reconstructed DSIP, (c) compact CBS latency/timeout statistics, (d) optional limited V2X delay/jitter analysis if technically meaningful. No ablations unless newly authorized.
+
+### DSIP reconstruction scope (added 2026-11-07, binding)
+
+Author decision: reconstruct the lost DSIP implementation so the revision has matched DSIP runs again. Rules:
+
+- **Fixed prior:** `EnvEmptyNoWait2D-RobotPlanarDisk` only. Substituting Empty2D / Highways2D / Conveyor2D, or training a new diffusion model, is **forbidden**. If the checkpoint is unusable, stop and report.
+- **Fixed coordinator:** **MMD-xECBS**, including Experience Reuse (MMD reference: 25 regular denoising steps, 3 noising steps for reuse). Do **not** substitute plain CBS, ECBS-only, or xCBS, and do not re-implement from the prose description — read the upstream call order first.
+- **No retraining, no architecture change**, no "improve the prior to get better numbers".
+- **Provenance.** Upstream MMD stays pristine in `third_party/_local/mmd/`; adapters live in `src/dsip_reconstruction/`. Every run records MMD commit, checkpoint SHA256, guidance/xECBS parameters, SUMO version, GPU/CUDA/PyTorch, scenario, seed, mode.
+- **Two execution modes, never mixed:** `paper_faithful` (idealised TraCI position control) and `dynamics_aware` (adds kinematic/curvature/rectangle-collision/tracking checks). All new results are labelled **`DSIP-Reconstructed`**.
+- **Timing honesty.** Do not report a single network forward pass as a full planning query; do not claim the historical 7.75 ms/query. Report the timing buckets and the 400 ms deadline-miss rate.
+- **Known manuscript divergence (record, do not silently fix):** the submitted LaTeX describes **CBS** only and never mentions xECBS, Experience Reuse, or the checkpoint name. See `docs/dsip_reconstruction/manuscript_audit.md` §4/§6. Manuscript changes require separate author approval.
+- **Gates apply.** Stages 0–9 of the reconstruction plan each stop for author review; the full 450-run DSIP matrix requires a separate explicit authorization on top of the 2026-11-07 decision.
 
 ## 8. Research integrity, references, and reviewer responses
 

@@ -1,6 +1,6 @@
 # HANDOFF — DSIP-RR 当前状态交接
 
-- 更新日期：**2026-11-02**（Task 06 checkpoint：审稿意见、口径对齐、FCFS 真实控制；Task 01–05 的记录见 §10）
+- 更新日期：**2026-11-07**（Stage 0/1 checkpoint：PSB/PSL 克隆与编译审计、FCFS 缺陷审计；Task 01–06 的记录见 §10–§11）
 - 本文档是**当前唯一权威的资产与边界说明**。与它冲突的旧报告一律作废（见 §4）。
 
 > ## 🚩 当前状态（2026-11-02）
@@ -12,8 +12,9 @@
 > | TraCI 通路（traci 1.24.0 ↔ SUMO 1.12.0，协议 v20） | **已验证（含写入）**：`setStop` / `resume` 在 0.1 s 下生效 |
 > | FCFS **Shadow Mode**（只算决策、不控制车辆） | **已完成**（`baselines/fcfs_sumo/`） |
 > | FCFS **真实控制（单 run 验证）** | **✅ 已跑通**：`baselines/fcfs_sumo/control.py`；seed 81890、100 s 下 **无控制 2 次碰撞 → 控制 0 次** |
-> | FCFS **完整基线复现（30 seeds × 5 密度 × 3 车道 = 450 runs）** | **🔄 扫描中**：`experiments/run_fcfs_sweep.py`（8 进程、可续跑）；截至 2026-11-02 收工已跑完 170+/450 |
-> | CCAM-DI / DSIP 复现 | **❌ 未开始**（无源码、无权重） |
+> | FCFS **完整基线复现（30 seeds × 5 密度 × 3 车道 = 450 runs）** | **⛔ 已中断**：`experiments/run_fcfs_sweep.py` 跑到 **227/450** 后 SUMO 崩溃（`malloc_consolidate` 堆损坏 + `resume` 报错洪泛）；原因定位为 `control.py` 的 D-03 缺陷（详见 `docs/baselines/fcfs-correctness-audit.md`）。旧数据**不得**用于论文 |
+> | **PSB / PSL 上游复现（本轮新增）** | **🔄 Stage 1 完成**：两仓库已克隆（pristine）、commit/许可证/依赖已记录、CMake 配置通过、**编译均失败于缺少 CPLEX**（`ilcplex/ilocplex.h`）。PSB 无预编译二进制；PSL 有静态链接的 `AIMPBS`（待 Stage 2 验证） |
+> | CCAM-DI / DSIP 复现 | **❌ 未开始**（无源码、无权重）；CCAM-DI 本轮**明确降为可选** |
 > | 审稿意见 | **✅ 已获取并归档**（EIC + R1 Reject + R2 Major Revision；见 §11） |
 > | 论文 LaTeX 审计（AGENTS §4） | **部分完成**：审稿矩阵 + 口径一致性表已建；本机无 LaTeX，**由作者云端编译** |
 >
@@ -861,4 +862,249 @@ forced 车辆为 flow_ne.24 / flow_we.58 / flow_nw.40 / flow_ns.92 —— 与碰
 - 明确未提交：`results/**`（可再生）、`paper/reviews/**`（私人材料，`.gitignore` 排除）、
   `scenarios/original/routes.txt`（按作者要求未跟踪）
 - 未改写任何历史；未 push
+
+
+---
+
+## 12. Stage 0 / Stage 1 checkpoint（2026-11-07）— Baseline 升级与复现
+
+> 本节是本轮**最新**的状态记录；与 §11（2026-11-02 收工）冲突时**以本节为准**。
+> 详细证据与报告：`docs/baselines/stage0-stage1-report.md`。
+
+### 12.1 本轮做了什么
+
+| Stage | 内容 | 结果 |
+|---|---|---|
+| 0 | 仓库与环境审计（不跑仿真） | 完成。Git 干净（仅 1 个未跟踪文件）；SUMO 1.12.0 / traci 1.24.0 / CMake 3.22.1 / g++ 11.4 / Boost 1.82(conda) 均可用；**CPLEX 缺失** |
+| 1 | 克隆 PSB 与 PSL、记录 commit/许可/依赖、尝试原始编译 | 完成。**两仓库均因缺 CPLEX 无法编译** |
+
+**未执行**：Stage 2 及之后的一切（未运行任何 PSB/PSL 样例、未重跑 FCFS、未改任何算法代码）。
+
+### 12.2 上游仓库登记（详见 `third_party/UPSTREAMS.md`）
+
+| 项 | PSB | PSL |
+|---|---|---|
+| URL | `JingtianYan/PSB-RAL` | `theanhhoang/AIM` |
+| 分支 | `main` | `AAAI22_PBS-SIPP` |
+| commit | `0b3f6eb3…c90af24` | `5686e150…23c60fa` |
+| 体积 | 29 MB | 494 MB（含 venv、预编译二进制、MP4/PDF） |
+| 许可证 | **无 LICENSE 文件 → 不可再分发** | **无 LICENSE 文件 → 不可再分发** |
+| 编译 | ❌ `ilcplex/ilocplex.h` 缺失 | ❌ 同一错误（`SIPP.cpp:9`） |
+| 预编译 | 无 | 有 `PBS-SIPP-ver2/AIMPBS`（静态链接，无 cplex 动态依赖） |
+
+两个 checkout 均 **pristine**（未改一个字节），`third_party/*/` 已被 `.gitignore` 排除，
+不会误入版本库；编译产物在 `third_party/_local/_build/`（同样不入库）。
+
+### 12.3 对 §11 的一处纠正（重要）
+
+§11.7.2 把 FCFS 全矩阵扫描写成"后台运行中、可续跑"。实测：
+
+- `results/fcfs_sweep/summary.csv` 只有 **227/450** 行（`ok` 216、`skipped` 11）；
+- 进度日志停在 `[220/450]`，随后 `sweep.log` 出现 8 次
+  `malloc_consolidate(): unaligned fastbin chunk detected` 与多次
+  `tcpip::Socket::recvAndCheck @ recv: Connection reset by peer`；
+- 崩溃前错误洪泛：`Error: Answered with error to command 0xc4: Failed to resume from stopping
+  for vehicle 'flow_se.18', reached: 0, …`（同一车连续多步）。
+
+⇒ 该扫描**已异常终止**，不是"进行中"；其数据**不完整**，不得作为论文数字。
+根因假设已写入 `docs/baselines/fcfs-correctness-audit.md` 的 **D-03**
+（`setStop` 失败的车辆被记入 `stopped`，随后对其调用 `resume()`）。
+
+### 12.4 FCFS 审计结论（12 项缺陷，3 项严重）
+
+`docs/baselines/fcfs-correctness-audit.md` 逐条给出位置与修复方向，最严重的三条：
+
+| 编号 | 问题 | 影响 |
+|---|---|---|
+| D-01 | `booking.py` 中 `A_MAX == A_MIN == 1.0`，快/慢 ETA **完全相同** | 声称的"最坏情况窗口带"宽度为零 → 早放行 |
+| D-02 | `Δt_safe` 在窗口内与重叠判定中被**重复计算** | 实际安全间隔约为设计值 2 倍 → 过度保守 |
+| D-03 | `too_close` 车辆被记入 `stopped`，随后被 `resume()` | TraCI 报错洪泛 → 连接重置 → **SUMO 崩溃**（即 §12.3） |
+
+**未改任何代码**：本轮只审计，修复属 Stage 3，需作者确认后进行。
+
+### 12.5 文档产出
+
+```text
+third_party/UPSTREAMS.md                 # 两个上游的完整登记（新）
+docs/baselines/baseline-strategy.md      # 四层比较结构（新）
+docs/baselines/fcfs-correctness-audit.md # FCFS 缺陷审计（新）
+docs/baselines/psb-reproduction.md       # PSB 复现记录（新）
+docs/baselines/psl-reproduction.md       # PSL 复现记录（新）
+docs/baselines/sumo-adaptation-design.md # 统一接口 + SUMO 适配设计草案（新）
+docs/baselines/fairness-protocol.md      # 公平比较协议 v0（新）
+docs/baselines/stage0-stage1-report.md   # Stage 0/1 报告（新）
+README.md                                # 仓库根简介（新）
+AGENTS.md                                # §2 更新：baseline 结构 + 授权范围 + 阶段闸门
+```
+
+### 12.6 当前阻塞（按优先级）
+
+1. **CPLEX 未安装** ⇒ PSB 完全无法运行；PSL 无法重编译。
+   需作者在 A（自装 CPLEX，由我们的 CMakeLists 指路径）/ B（建 `/opt/ibm/ILOG/CPLEX_Studio1210` 约定路径）/ C（换开源求解器，需授权且须披露）中选一个。
+2. PSB/PSL 是否真能导出可执行轨迹**未验证** ⇒ 上游只给 schedule（PSB 多给 Bézier 控制点）。
+3. FCFS D-03/D-01/D-02 未修 ⇒ 后续任何 FCFS 数字都不可信。
+4. 历史 DSIP 逐 run 数据仍缺失 ⇒ 四算法联合箱线图仍需重建 DSIP 后才可能。
+
+### 12.7 下一步（等作者确认）
+
+- **建议先做** Stage 3 的 D-03 修复 + 纯逻辑单测（不依赖 CPLEX、不跑批量），
+  因为它能消掉崩溃；同时 **Stage 2 的 PSL 单样例**（`./AIMPBS 4`）可并行判定预编译二进制是否可用。
+- **PSB 的 Stage 2 必须等 CPLEX 决策**。
+- 仍**禁止**：450 次扫描、`Controller/controller.py`、任何 PSB/PSL 参数矩阵。
+
+
+---
+
+## 13. Stage 0 checkpoint（2026-11-07）— DSIP Reconstruction 论文/代码审计
+
+> 本轮任务：**基于 MMD EmptyNoWait 预训练轨迹 + xECBS 重建 DSIP**（作者 2026-11-07 决定）。
+> 本阶段**只读、未运行任何实验**；未改论文、未改任何既有代码。
+
+### 13.1 审计结论（一句话版）
+
+**原始 DSIP 代码、checkpoint、逐 run 数据在工作区内确实不存在**（`src/`、`evaluation/` 仅 `.gitkeep`；
+全仓 `grep -rl 'diffusion|xecbs|cbs'` 于 py/yaml/json **无命中**）。
+因此本轮是"按作者指定技术路线**重建**"，不是"找回旧代码"。
+
+### 13.2 稿件（`paper/submitted/overleaf/…/main.tex`，657 行 / 26 式 / 8 图 / 2 表）能提供什么
+
+| 明确给出（可直接当规范） | 完全缺失（必须从上游/调参恢复） |
+|---|---|
+| 状态 `x=[x,y]^T`（186-191） | checkpoint 身份（全文无 `EmptyNoWait`，只有"following [41]"） |
+| 目标函数 `L^post=L−λ_p log P_θ`、`L=λ_g L_goal+λ_l L_lane+λ_s L_smooth+λ_c L_col`（213-236） | 全部 λ 数值、`η`、`ρ_b`、`Δh`、`M`、`H`、采样数 |
+| Lane 代价 `Σ_h d²(x_h,P^lane)`、冲突代价 `Σ_bΣ_{h∈H_b}[ρ_b−d]²_+`（301-348） | **Experience Reuse 完全未提**（`grep -ciE 'reuse|experience|xecbs'` = **0**） |
+| 每 4 步（0.4 s）规划、0.1 s 步长（386-390, 442） | `Δt_MMD`（模型时间采样间隔） |
+| TraCI 位置执行 + 相邻点算 heading（392, 479-484） | 具体 TraCI API / `speedMode` / `laneChangeMode` |
+| 历史声明：450 runs、0 碰撞、3 次急刹、7.75 ms/query（581-585, 607） | 7.75 ms 的**计时边界** |
+
+### 13.3 三处必须先解决的实质不一致
+
+1. **CBS vs xECBS**：稿件只写 "CBS-based"（Alg.1 名 `CBS-Diffusion-Plan`），
+   作者指定实现 **xECBS + Experience Reuse** ⇒ Alg.1 与真实实现不等价。
+2. **状态维数**：稿件 2 维位置，MMD 模型是含速度的 4 维 ⇒ 内部保持 4 维、输出层投影。
+3. **checkpoint 与全部数值参数缺失** ⇒ EmptyNoWait 属 **AUTHOR_SPECIFIED**，其余一律 `UNKNOWN`。
+
+### 13.4 工作区内可复算的数值一致性（顺手核验）
+
+- Table I 与 `scenarios/flows` 的 **3 车道档精确吻合**（480/600/768/960/1200），
+  Eq.(1) 的发车间隔 `3600/(3×480)=2.5 s` 与文件 `normal(2.5,1.0)` 一致。
+- **2/4 车道档实际为 468/612/756/972/1188**（比 Table I 低约 2.5%），
+  因为 `generate_flows.py` 由每进口车辆数反推间隔并取整 ⇒ 需在公平协议中声明（`unresolved_questions.md` Q11）。
+
+### 13.5 本轮产出（全部为文档，零代码）
+
+```text
+docs/dsip_reconstruction/manuscript_audit.md        # 稿件技术内容 + 三处不一致 + 6 条修订建议（未执行）
+docs/dsip_reconstruction/parameter_inventory.md     # 30 行参数表，逐项标注 RECOVERED/PAPER_SPECIFIED/.../UNKNOWN
+docs/dsip_reconstruction/implementation_decisions.md# D-01…D-13：adapter 策略、坐标/时间变换、两模式、仪表化、安全降级
+docs/dsip_reconstruction/unresolved_questions.md    # Q1…Q12，含必须由作者先答的两项
+third_party/UPSTREAMS.md §5                         # MMD 登记位（Stage 1 填实测值）
+AGENTS.md §2/§7                                     # 新增 MMD 授权行 + "DSIP reconstruction scope (2026-11-07, binding)"
+```
+
+### 13.6 环境现状（Stage 1 的前提，已审计过）
+
+- `mmd` conda 环境存在：**Python 3.8.20 / PyTorch 2.0.0+cu118 / RTX 4060 可见**（见 `docs/env/mmd-environment-audit.md`）；
+  **端到端可运行性未验证**。
+- traci/sumolib **1.24.0** ↔ SUMO 二进制 **1.12.0**：已知版本偏差，Stage 6 集成时复核。
+- 上游 MMD **不含** traci/sumolib ⇒ SUMO 桥接层必须新写。
+
+### 13.7 下一步（Stage 1，等作者确认）
+
+1. 克隆 `https://github.com/yoraish/mmd.git` → `third_party/_local/mmd/`，记录 **精确 commit**（2024-11-07 那次清理前后要分清）；
+2. 校验已有 `mmd` 环境是否满足该 commit 的依赖（不改其他环境）；
+3. 下载并校验 `EnvEmptyNoWait2D-RobotPlanarDisk` checkpoint（完整版 vs small 版，比对 SHA256/配置）；
+4. 产出 `mmd_environment_report.md` + `checkpoint_manifest.md`；**不跑 SUMO、不跑实验**。
+
+### 13.8 仍需作者先答（阻塞 Stage 1/3）
+
+- **Q1**：原 DSIP 用的是哪一份 checkpoint 归档（完整 / small）？
+- **Q3**：xECBS 在上游的确切入口，以及 weak/strong 约束是否都要恢复？
+- **Q9**：稿件 Alg.1 与 xECBS 不一致，改稿策略选哪种（只改术语 / 重写 Alg.1 / 正文说明）？
+
+
+---
+
+## 14. Stage 1 checkpoint（2026-11-07）— MMD 环境 / EmptyNoWait checkpoint / flows 重生成
+
+> 承接 §13（DSIP Reconstruction 的 Stage 0）。作者已在 §13.8 的三个待答问题上给出裁决，
+> 本节记录据此实际完成的工作。**仍未运行任何推理或仿真。**
+
+### 14.1 作者裁决（本轮据此执行）
+
+| 问题 | 裁决 |
+|---|---|
+| Q1 checkpoint 版本 | **full 版本**（`data_trained_models.tar.xz`） |
+| Q3 xECBS 入口 | **`scripts/`**（`scripts/inference/*`；实现本体在 `mmd/planners/multi_agent/cbs.py`） |
+| Q9 稿件 Alg.1 与 xECBS 不一致 | **只改术语**（不动数学与算法描述实质） |
+| Q5/Q6/Q7 参数丢失 | 按 **MMD 默认值**起步（当年默认参数表现良好） |
+| Q10 Mode A | **暂时保留 SUMO 碰撞检测** |
+| Q11 lanes2/4 密度偏差 | **重新生成 flows**（已执行） |
+
+### 14.2 MMD 上游（实测）
+
+| 项 | 值 |
+|---|---|
+| 克隆位置 | `third_party/_local/mmd/`（pristine；Git 忽略） |
+| 分支 / commit | `main` / **`5c2597eb3e2def9f0a87d7972811d340343c0738`**（2025-02-12，10 个提交，16 MB） |
+| 许可证 | **MIT**（PSB/PSL 无许可证，MMD 有——三者的再分发口径不同） |
+| 与论文版本的关系 | 作者提示 2024-11-07 有清理改动；当前 HEAD 晚于该日期 ⇒ **不得声称"复现了论文时那份代码"** |
+| 训练 commit | `81b20df…`（写进 args.yaml）**已不在上游历史中** ⇒ 训练代码不可得，推理不受影响 |
+
+### 14.3 EmptyNoWait checkpoint（实测）
+
+| 项 | 值 |
+|---|---|
+| 归档 | full 版，472 119 808 B，2026-11-07 下载 → `third_party/_local/_assets/data_trained_models/`（Git 忽略） |
+| 归档内容 | 5 个 env，含 **`EnvEmptyNoWait2D-RobotPlanarDisk`** ✅ |
+| 实际加载权重 | `checkpoints/ema_model_current_state_dict.pth`（`use_ema: true`）<br>SHA256 `ed1180b1136d7bfbce1b1c08097d868fbf737df8f2b14bb521cebed1ee0b3444` |
+| `args.yaml` | `include_velocity: true`、**`n_diffusion_steps: 25`**、exponential、predict_epsilon、unet_input_dim 32、dim_mults 0 |
+| 权重自检 | `betas` 形状 `[25]`；首层卷积 `(32, 4, 5)` ⇒ **state_dim = 4** |
+| 训练尺度 | horizon **64**、duration **5.0 s** ⇒ `Δt_MMD = 0.078125 s`；disk r=**0.05**；xECBS 顶点半径 **0.12**；workspace **2×2** |
+
+### 14.4 关键实现发现（比参数更重要）
+
+**上游 `CBS.__init__` 默认 `is_xcbs=False, is_ecbs=True`**——直接调用得到的是 **ECBS**。
+只有把 `multi_agent_planner_class` 设成 `"XECBS"` 时，
+`scripts/inference/inference_multi_agent.py:112-113` 才会同时打开 `is_xcbs` 与 `is_ecbs`。
+⇒ 已写成 **D-03a**：所有多车实验必须显式设 `"XECBS"`，并用
+`experience_reuse_calls > 0` 作为"reuse 真的生效"的判据。
+
+**25 步 vs 3 步不是同一层面**：25 是模型固有 DDPM 步数（写进权重），
+3 是 experience-reuse 局部分支的加噪/去噪步数。禁止混为一谈。
+
+### 14.5 flows 重生成（作者决定，已执行并校验）
+
+- `scenarios/flows/generate_flows.py` 改为以**稿件 Table I** 的 `veh/(h·lane)` 为唯一来源，
+  `μ = 3600/(n_lanes·density)`（Eq.1）、`number = round(1000/μ)`、σ=1.0 不变；
+- `routes.txt` 不再是输入，只做信息性交叉核对（其 lanes3 列与 Table I 完全一致，其余列相差约 2.5%）；
+- 15 个 `.rou.xml` 全部重生成；`validate_flows.py` 重写为按 Table I 校验，
+  结果 **15/15 OK（exit 0）**，实际直行密度 480.0–480.6 / 599.4–600.3 / 767.7–768.6 / 959.4–960.3 / 1199.7–1200.6；
+- ⚠️ 旧车流（2/4 车道为 468/612/756/972/1188）跑出的结果，**不得与新结果混比**。
+
+### 14.6 新增/更新的文档
+
+```text
+docs/dsip_reconstruction/mmd_environment_report.md   # 新增：上游版本、xECBS 位置、环境、参数默认值
+docs/dsip_reconstruction/checkpoint_manifest.md      # 新增：归档来源、SHA256、args.yaml、权重自检
+docs/dsip_reconstruction/parameter_inventory.md      # 新增 §4「Stage 1 回填」（13 行从 UNKNOWN → 实测）
+docs/dsip_reconstruction/unresolved_questions.md     # 新增 §0「作者已回答」
+docs/dsip_reconstruction/implementation_decisions.md # 新增 D-02a / D-03a / D-14 / D-15
+third_party/UPSTREAMS.md §5.1                        # 实测登记完成
+scenarios/flows/{generate_flows.py,validate_flows.py,README.md} + 15 个 .rou.xml  # 重生成
+```
+
+### 14.7 当前阻塞 / 未验证
+
+1. **低层 planner 用 `MPD` 还是 `MPDEnsemble`** —— 需 Stage 2 实测官方入口；
+2. **checkpoint 能否被完整 `load_state_dict`** —— 只做了键/形状自检；
+3. **`Δt_MMD = 0.078125 s` 与 0.4 s 刷新如何对齐** —— Stage 4 设计（5.0 s 轨迹 ≈ 12.5 个规划周期）；
+4. **SUMO 米制 ↔ MMD 2×2 units 的换算系数 `s`** —— 仍 UNKNOWN，Stage 4 先做尺度自检；
+5. 仍**未**运行任何推理/仿真；450 次矩阵仍**未**授权。
+
+### 14.8 下一步（Stage 2，等待作者确认）
+
+在 `mmd` 环境 + `PYTHONPATH=third_party/_local/mmd` 下做**一次**单车 EmptyNoWait 推理：
+确认模型加载、输入输出维数、轨迹坐标/时间范围、去噪步数、GPU 使用；记录命令/配置/轨迹/日志。
+**不跑**多车、**不跑** SUMO、**不跑**任何批量。
 
