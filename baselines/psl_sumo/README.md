@@ -30,6 +30,7 @@ commit `5686e15092fd95a46309a118655a5ab0c23c60fa`，本地只读 checkout
 | `kinematics.py` | 冲突点占用模型的**单一事实来源**（`constant` / `accelerating`），规划器与校验器共用 |
 | `plan_scenario.py` | 全 1000 s 需求的**移动时间框顺序批规划** + 冲突点预约守卫；产出 `schedule.csv`/`summary.json` |
 | `group_utilisation.py` | 诊断：各冲突组的占用率，用来判断"延误是模型容量还是求解器问题" |
+| `run_matrix.py` | **全量矩阵驱动器**：3 路网 × 5 密度 × 30 seeds = 450 run，断点续跑、可并行 |
 
 ```bash
 # 1) 图模型（--trim-ends：只保留真实交叉点，见下）
@@ -78,6 +79,21 @@ python3 baselines/psl_sumo/group_utilisation.py \
    复现上游语义来保证这一点，并在 `check()` 里显式断言。
 5. 上游硬编码 `v_max = 15 m/s`，高于 `types.typ.xml` 的 `maxSpeed = 13.9`。
    这是**已知偏离**，必须在论文中披露。
+
+## 全量矩阵结果（450/450，已保存）
+
+`python3 baselines/psl_sumo/run_matrix.py --out-root results/psl_matrix --jobs 8`
+→ 3 路网 × 5 密度 × 30 seeds，3,443 s，全部 `ok`、全部独立校验、**0 冲突违规**、
+17.05 亿对冲突顶点。完成率（30 seeds 均值）：
+
+| 车道 | MinD | LowD | MedD | HigD | MaxD |
+|---|---|---|---|---|---|
+| 2 | 0.913 | 0.742 | 0.587 | 0.478 | 0.392 |
+| 3 | 0.861 | 0.717 | 0.586 | 0.494 | 0.419 |
+| 4 | 0.647 | 0.542 | 0.449 | 0.382 | 0.327 |
+
+达成速率恒定在 1.45 / 1.99 / 1.8 veh/s（与密度无关）⇒ 容量上限。
+详见 `docs/baselines/psl-matrix-results.md`。
 
 ## 仍未完成
 

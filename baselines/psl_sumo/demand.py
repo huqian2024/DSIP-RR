@@ -189,6 +189,67 @@ def sha256(path):
     return h.hexdigest()
 
 
+def flow_departures(rou_path, routes, paths, vt, seed_offset=0):
+    """Generate departures from the ``<flow>`` definitions themselves.
+
+    Why not read them back from a SUMO run?  At HighD/MaxD the approach edges
+    (86 m, 3 lanes) cannot store the queue, so a reference run inserts only part
+    of the demand -- measured at density 5: 828 of 2400 vehicles inside 300 s,
+    and the realised coordinated count was 2026 (MinD) vs 2063 (MaxD), i.e. the
+    density dimension collapses.  The *demand* is the departure process the flow
+    file specifies, not the subset SUMO managed to insert.
+
+    Each flow is ``departInterval="normal(mu, sigma)"`` with ``number=N``.  That
+    process is resampled here with a per-flow RNG seeded from the flow's own
+    ``seed`` attribute, so it is reproducible.  It is statistically equivalent to
+    SUMO's realisation but not bit-identical -- recorded in the manifest as
+    ``demand_source: flow_resample``.
+    """
+    import random
+
+    root = ET.parse(rou_path).getroot()
+    by_pair = {}
+    for p in paths:
+        by_pair.setdefault((p["from_edge"], p["to_edge"]), []).append(p)
+    lane_len = {}
+    for e in root.iter("lane"):                # not present in .rou.xml
+        lane_len[e.get("id")] = float(e.get("length"))
+
+    departures, route_of = {}, {}
+    for fl in root.findall("flow"):
+        route_id = fl.get("route")
+        route_edges = routes.get(route_id)
+        if not route_edges or len(route_edges) < 2:
+            continue
+        cand = by_pair.get((route_edges[0], route_edges[-1]))
+        if not cand:
+            continue
+        number = int(fl.get("number") or 0)
+        begin = float(fl.get("begin") or 0.0)
+        end = float(fl.get("end") or 1e9)
+        spec = fl.get("departInterval") or "normal(1,1)"
+        mu, sigma = 1.0, 0.0
+        if spec.startswith("normal("):
+            mu, sigma = (float(x) for x in spec[7:-1].split(","))
+        elif spec.startswith("exp("):
+            mu = float(spec[4:-1])
+        rng = random.Random(int(fl.get("seed") or 0) + seed_offset)
+        t = begin
+        for k in range(1, number + 1):
+            t += max(rng.gauss(mu, sigma), 0.1) if sigma > 0 else mu
+            if t > end:
+                break
+            vid = "%s.%d" % (fl.get("id"), k)
+            path = cand[rng.randrange(len(cand))]
+            pos = rng.uniform(0.0, max(1.0, path["length"] - 15.0))
+            speed = rng.uniform(0.0, vt["maxSpeed"])
+            departures[vid] = {"t": t, "pos": pos, "speed": speed,
+                               "lane": "%s_%d" % (path["from_edge"],
+                                                  path["fromLane"])}
+            route_of[vid] = route_edges
+    return departures, route_of
+
+
 def build_requests(edges, fcd_first, routes, vehicles, vehroute_routes, vt,
                    paths_by_pair, arrival_model, limit, paths_by_key=None):
     """Assemble one request per vehicle that reached the junction."""
@@ -259,7 +320,7 @@ def main(argv=None):
     ap.add_argument("--seed", type=int, default=81890)
     ap.add_argument("--arrival-model", choices=("freeflow", "observed"),
                     default="freeflow")
-    ap.add_argument("--reference-source", choices=("tripinfo", "fcd"),
+    ap.add_argument("--reference-source", choices=("tripinfo", "fcd", "flows"),
                     default="tripinfo",
                     help="how insertion position/speed is read from the reference "
                          "run (tripinfo works for the full 1000 s horizon)")
@@ -292,12 +353,20 @@ def main(argv=None):
             paths_by_pair[k] = v[len(v) // 2]      # fallback: median lane
     else:
         paths_by_pair = paths_by_key
-    cmd, artifact, vehroute, log = run_reference_sumo(
-        args.net, args.rou, args.typ, args.begin, args.end, args.step,
-        args.seed, out, source=args.reference_source)
-    departures = (first_observations(artifact) if args.reference_source == "fcd"
-                  else tripinfo_departures(artifact))
-    vehroute_routes = parse_vehroute(vehroute)
+    if args.reference_source == "flows":
+        # demand taken from the flow definitions, independent of what SUMO could
+        # insert (see flow_departures())
+        departures, vehroute_routes = flow_departures(
+            args.rou, routes, paths, vt, seed_offset=args.seed)
+        cmd, artifact, log = ["flow_resample"], None, None
+    else:
+        cmd, artifact, vehroute, log = run_reference_sumo(
+            args.net, args.rou, args.typ, args.begin, args.end, args.step,
+            args.seed, out, source=args.reference_source)
+        departures = (first_observations(artifact)
+                      if args.reference_source == "fcd"
+                      else tripinfo_departures(artifact))
+        vehroute_routes = parse_vehroute(vehroute)
     requests, rejected = build_requests(
         edges, departures, routes, vehicles, vehroute_routes, vt,
         paths_by_pair, args.arrival_model, args.limit,
@@ -318,8 +387,11 @@ def main(argv=None):
         "reference_sumo_command": cmd,
         "reference_sumo_log": str(log),
         "reference_source": args.reference_source,
-        "reference_artifact": str(artifact),
-        "reference_artifact_sha256": sha256(artifact),
+        "demand_source": ("flow_resample" if args.reference_source == "flows"
+                          else args.reference_source),
+        "reference_artifact": str(artifact) if artifact else None,
+        "reference_artifact_sha256": sha256(artifact) if artifact else None,
+        "rou_sha256_used": sha256(args.rou),
         "seed": args.seed, "step_length_s": args.step,
         "window_s": [args.begin, args.end],
         "arrival_model": args.arrival_model,

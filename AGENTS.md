@@ -127,7 +127,8 @@ Evidence for each stage goes to `docs/baselines/psl-stage1-runlog.md`.
 | 4 | small-scale experiment | fixed seeds, several repeats, metrics plausible, explicit alignment (not mixing) with historical DSIP figures |
 | 5 | evaluation / sweep proposal | a written proposal for the formal matrix — **no sweep runs before author confirmation** |
 
-Current position: **Stages 0–3 done (planning side); Stage 4 attempted, NOT passed.**
+Current position: **Stages 0–4 done (planning side); the full 450-run matrix executed and
+validated (author-authorized). Stage 5 (written sweep proposal) superseded by that instruction.**
 Stage 3 must **not** be called "closed-loop": the plan is not yet fed back into SUMO.
 
 Additional binding notes (2026-11-14 evening):
@@ -150,6 +151,15 @@ Additional binding notes (2026-11-14 evening):
   makes `Li/w + Li/v = 2 Li/v`) lifts MinD completion to **0.952-0.979 over three seeds**
   (mean 0.967), mean entry delay 11.5-21.0 s, all validated with 0 violations. Report it as
   "occupancy calibrated to the road speed limit", not as the upstream default.
+- **Full matrix executed 2026-11-14 (author instruction "run the full set")**: 3 nets x 5
+  densities x 30 seeds = **450/450 runs**, all validated, **0 conflict violations**,
+  1.705e9 conflict-vertex pairs, 43,088 batches `optimal` and 59 solver crashes (0.14 %,
+  degraded and recorded). Completion by lanes x density: 2 lanes 0.913/0.742/0.587/0.478/0.392;
+  3 lanes 0.861/0.717/0.586/0.494/0.419; 4 lanes 0.647/0.542/0.449/0.382/0.327.
+  Sustained rate is flat at 1.45/1.99/1.8 veh/s => a capacity ceiling, not gradual degradation.
+  Report: `docs/baselines/psl-matrix-results.md`.
+- Demand is resampled from the `<flow>` definitions (`demand_source: flow_resample`), because the
+  86 m approaches cannot insert HighD/MaxD (reading back from SUMO collapsed MaxD onto MinD).
 - Reportable: completion fraction / entry delay / effective rate **with** those controls.
   Not reportable: throughput, travel time, collisions; and any direct "PSL is worse than DSIP"
   claim (different conflict models, no matched rerun).
