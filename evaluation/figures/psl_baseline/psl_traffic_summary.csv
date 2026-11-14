@@ -1,0 +1,7 @@
+lanes,density,seed,control,runs,time_loss_series_mean_s,time_loss_per_vehicle_mean_s,speed_series_mean_mps,speed_per_vehicle_mean_mps,travel_time_mean_s,proximity_events_lt1p5m,emergency_braking_events,vehicles_inserted,trips_completed,entry_deviation_p50_s,plan_completion_fraction,plan_rate_veh_s
+3,1,81890,psl,1,9.8417,14.2929,6.2706,6.8546,28.1267,55,135,1994,1932,20.685,,
+3,1,81890,none,1,6.8259,10.2248,7.3228,7.5672,23.6529,100,222,2702,2644,,,
+3,3,81890,psl,1,10.0936,14.4686,6.2597,6.8604,28.4585,46,107,2006,1946,23.629,,
+3,3,81890,none,1,6.7886,10.1463,7.357,7.5894,23.5427,106,220,2700,2640,,,
+3,5,81890,psl,1,10.3882,14.8927,6.2091,6.7854,29.0084,55,103,1949,1892,26.543,,
+3,5,81890,none,1,6.8532,10.2361,7.3391,7.5602,23.6243,127,254,2728,2664,,,

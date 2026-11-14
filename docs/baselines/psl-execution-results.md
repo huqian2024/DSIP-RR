@@ -241,3 +241,49 @@ Figs. 2–4 / as2–as4 的横轴）、`entry_events.csv`（逐车计划/放行/
 `results/psl_final/{dem,plan,exec}-d{1,3,5}/`（需求、计划、执行三件套，含
 `metrics.json` / `timeseries.csv` / `entry_events.csv` / `collisions.csv` / `tripinfo.xml` / manifest）。
 
+
+---
+
+## 8. 可对比、可直接出图的结果（已生成）
+
+脚本：`evaluation/psl_baseline_report.py`（一条命令同时出表和图）。
+
+```bash
+python3 evaluation/psl_baseline_report.py
+```
+
+产物在 `evaluation/figures/psl_baseline/`：
+
+| 文件 | 用途 |
+|---|---|
+| `psl_traffic_summary.csv` | **6 行**（3 密度 × 2 对照），列含 TimeLoss 序列/逐车、均速序列/逐车、行程时间、近距、急减速、插入/完成、进入偏差 p50 |
+| `timeseries_all.csv` | **606 行**（密度 × 对照 × 10 s 采样），列：`density, control, time_s, mean_time_loss_s, mean_speed_mps, n_active` |
+| `fig_timeloss.pdf/.png` | 三个密度分面板，PSL vs 无控制的**平均 TimeLoss 时序**（对应稿件 Figs. 2–4 口径） |
+| `fig_speed.pdf/.png` | 同上，**平均速度时序**（对应 as2–as4 口径） |
+| `plot_manifest.md` | 每个产物的来源、数据类别（`NEW_BASELINE_RAW`）、1 run/cell 声明 |
+
+**图的口径**（照 `AGENTS.md` §6）：纯脚本生成、矢量 `.pdf` + 300 dpi `.png` 双份、
+横轴 10 s 采样与稿件一致、黑/灰 + 实线/虚线保证灰度可辨、标题里写明
+"1 seed, 1 run per cell"。**没有画箱线图**——每个格子只有 1 次运行，构不成分布（§6.3）。
+
+**要扩到多种子**（届时可出箱线图）：
+
+```bash
+for S in 81891 81892; do
+  for D in 1 3 5; do
+    python3 baselines/psl_sumo/demand.py --net scenarios/original/cross3.net.xml \
+      --rou scenarios/flows/lanes3_density$D.rou.xml --typ scenarios/original/types.typ.xml \
+      --instance-dir results/psl_matrix/instances/cross3_trim \
+      --out-dir results/psl_final/dem-d${D}-s$S --end 1000 --seed $S --reference-source flows
+    python3 baselines/psl_sumo/plan_scenario.py \
+      --instance-dir results/psl_matrix/instances/cross3_trim \
+      --demand-dir results/psl_final/dem-d${D}-s$S \
+      --run-dir results/psl_final/plan-d${D}-s$S --packer psl --speed-mode limit
+    python3 baselines/psl_sumo/execute_plan.py --net scenarios/original/cross3.net.xml \
+      --rou scenarios/flows/lanes3_density$D.rou.xml --typ scenarios/original/types.typ.xml \
+      --instance-dir results/psl_matrix/instances/cross3_trim \
+      --schedule results/psl_final/plan-d${D}-s$S/schedule.csv \
+      --out-dir results/psl_final/exec-d${D}-s$S --seed $S --end 1000 --control psl
+  done
+done
+```

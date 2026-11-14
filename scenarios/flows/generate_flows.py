@@ -34,6 +34,7 @@ Usage (from anywhere):
     python3 scenarios/flows/generate_flows.py
 """
 
+import argparse
 import re
 import sys
 import xml.etree.ElementTree as ET
@@ -48,6 +49,14 @@ HORIZON = 1000.0    # s, simulation window of every flow (main.tex line 491)
 SIGMA = 1.0         # headway spread, same convention as routes.rou.xml
 OPPOSITE = {("north", "south"), ("south", "north"),
             ("east", "west"), ("west", "east")}
+
+# L : S : R parts.  1:2:1 is Table I / the manuscript ratio; the other two are
+# the R1 turning-ratio sensitivity groups (author decision 2026-11-14).
+RATIOS = {"121": (1, 2, 1), "111": (1, 1, 1), "122": (1, 2, 2)}
+
+COMPASS = {"north": "N", "south": "S", "east": "E", "west": "W"}
+# right-hand traffic: turning "to the right" is clockwise, i.e. N->W, W->S, ...
+RIGHT_TURNS = {("N", "W"), ("W", "S"), ("S", "E"), ("E", "N")}
 
 # Manuscript Table I (main.tex lines 101-120), unit veh/(h*lane).
 # level -> (density of EACH turning direction, straight-through density)
@@ -81,6 +90,38 @@ def density_cell(level):
             "turn_density": turn_density,
         }
     return cells
+
+
+def ratio_cell(level, lanes, ratio="121"):
+    """Per-direction headway/count for one (level, lanes, L:S:R) cell.
+
+    The **total** approach demand is held at the Table I 1:2:1 value
+    ``lanes * (S + 2 * turn)`` veh/h, so a different ratio measures turnaround
+    sensitivity only -- it does not change how much traffic arrives.
+    """
+    turn_density, straight_density = TABLE1[level]
+    total_rate = lanes * (straight_density + 2.0 * turn_density)   # veh/h
+    pl, ps, pr = RATIOS[ratio]
+    parts = float(pl + ps + pr)
+    out = {}
+    for key, part, density in (("left", pl, None), ("straight", ps, straight_density),
+                               ("right", pr, None)):
+        rate = total_rate * part / parts
+        mu = 3600.0 / rate
+        out["mu_" + key] = mu
+        out["n_" + key] = int(round(HORIZON / mu))
+    out["ratio"] = ratio
+    out["parts"] = (pl, ps, pr)
+    out["total_rate_per_approach"] = total_rate
+    out["turn_density"], out["straight_density"] = turn_density, straight_density
+    return out
+
+
+def turn_side(route_id):
+    """'L' or 'R' for a turning route id (``north2east`` -> 'L')."""
+    origin, _, destination = route_id.partition("2")
+    pair = (COMPASS[origin], COMPASS[destination])
+    return "R" if pair in RIGHT_TURNS else "L"
 
 
 def cross_check_routes_txt():
@@ -130,14 +171,16 @@ def build_file(lanes, level, cell, routes, flows):
         "  source      : manuscript Table I, veh/(h*lane)   (level %d)" % level,
         "  lanes       : %d per approach (two-way %d-lane)" % (lanes, lanes * 2),
         "  horizon     : 0-1000 s",
-        "  density     : straight %d veh/(h*lane), each turning direction %d"
-        % (cell["straight_density"], cell["turn_density"]),
-        "  counts      : straight %d, each turning direction %d  (per approach)"
-        % (cell["n_straight"], cell["n_turn"]),
-        "  headway     : straight %.6f s, each turning direction %.6f s"
-        % (cell["mu_straight"], cell["mu_turn"]),
+        "  density     : L/S/R split %s (parts %d:%d:%d) of the Table I total"
+        % (cell["ratio"], *cell["parts"]),
+        "  per-approach: left %d, straight %d, right %d  (vehicles)"
+        % (cell["n_left"], cell["n_straight"], cell["n_right"]),
+        "  headway     : left %.6f s, straight %.6f s, right %.6f s"
+        % (cell["mu_left"], cell["mu_straight"], cell["mu_right"]),
         "  conversion  : mu = 3600 / (n_lanes * density)   [Eq. (1), main.tex]",
-        "  ratio       : straight : each turning direction = 2 : 1  (L:S:R = 1:2:1)",
+        "  ratio       : L : S : R = %d : %d : %d" % cell["parts"],
+        "  total       : %.0f veh/h per approach (held fixed across ratios)"
+        % cell["total_rate_per_approach"],
         "  spread      : normal(mu, %.1f), the same convention as the original" % SIGMA,
         "                scenarios/original/routes.rou.xml",
         "",
@@ -156,8 +199,10 @@ def build_file(lanes, level, cell, routes, flows):
         rid = flow["route"]
         if is_straight(rid):
             mu, number = cell["mu_straight"], cell["n_straight"]
+        elif turn_side(rid) == "L":
+            mu, number = cell["mu_left"], cell["n_left"]
         else:
-            mu, number = cell["mu_turn"], cell["n_turn"]
+            mu, number = cell["mu_right"], cell["n_right"]
         lines.append(
             '    <flow begin="%s" departInterval="normal(%.10g, %.1f)" '
             'departPos="%s" departSpeed="%s" end="%s" id="%s" number="%d" '
@@ -169,44 +214,73 @@ def build_file(lanes, level, cell, routes, flows):
     return "\n".join(lines)
 
 
-def main():
+def main(argv=None):
+    ap = argparse.ArgumentParser(
+        description="Generate the DSIP-RR traffic-flow files.")
+    ap.add_argument("--ratios", default="121",
+                    help="comma list of L:S:R codes from %s (default 121)"
+                         % ",".join(sorted(RATIOS)))
+    ap.add_argument("--only-cells", default="",
+                    help="restrict to lanes:level pairs, e.g. '3:3' (default: all)")
+    args = ap.parse_args(argv)
+
     routes, flows = parse_base()
     if len(routes) != 12 or len(flows) != 12:
         raise SystemExit("expected 12 routes and 12 flows in the base file")
     if sum(1 for rid, _ in routes if is_straight(rid)) != 4:
         raise SystemExit("expected 4 straight routes in the base file")
 
+    ratios = [r.strip() for r in args.ratios.split(",") if r.strip()]
+    for r in ratios:
+        if r not in RATIOS:
+            raise SystemExit("unknown ratio %r (known: %s)"
+                             % (r, ",".join(sorted(RATIOS))))
+    wanted = set()
+    if args.only_cells:
+        for tok in args.only_cells.split(","):
+            lanes_text, level_text = tok.split(":")
+            wanted.add((int(lanes_text), int(level_text)))
+
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    print("%-24s %-5s %-2s %10s %8s %11s %9s %13s"
-          % ("file", "lanes", "lv", "N_straight", "N_turn", "h_straight",
-             "h_turn", "S real veh/h/lane"))
+    print("%-30s %-5s %-2s %5s %11s %12s %12s %13s"
+          % ("file", "ratio", "lv", "lanes", "N(L/S/R)", "h(L/S/R)",
+             "total veh/h", "S real veh/h/lane"))
     written = []
-    for level in sorted(TABLE1):
-        cells = density_cell(level)
-        for lanes in (2, 3, 4):
-            cell = cells[lanes]
-            path = OUT_DIR / ("lanes%d_density%d.rou.xml" % (lanes, level))
-            path.write_text(build_file(lanes, level, cell, routes, flows),
-                            encoding="utf-8")
-            written.append(path)
-            realised = cell["n_straight"] * 3600.0 / (lanes * HORIZON)
-            print("%-24s %-5d %-2d %10d %8d %11.6f %9.6f %13.1f"
-                  % (path.name, lanes, level, cell["n_straight"],
-                     cell["n_turn"], cell["mu_straight"], cell["mu_turn"],
-                     realised))
+    for ratio in ratios:
+        for level in sorted(TABLE1):
+            for lanes in (2, 3, 4):
+                if wanted and (lanes, level) not in wanted:
+                    continue
+                cell = ratio_cell(level, lanes, ratio)
+                name = ("lanes%d_density%d.rou.xml" % (lanes, level)
+                        if ratio == "121"
+                        else "lanes%d_density%d_r%s.rou.xml"
+                             % (lanes, level, ratio))
+                path = OUT_DIR / name
+                path.write_text(build_file(lanes, level, cell, routes, flows),
+                                encoding="utf-8")
+                written.append(path)
+                realised = cell["n_straight"] * 3600.0 / (lanes * HORIZON)
+                print("%-30s %-5s %-2d %5d %5d/%3d/%3d %4.2f/%4.2f/%4.2f %12.0f %13.1f"
+                      % (path.name, ratio, level, lanes, cell["n_left"],
+                         cell["n_straight"], cell["n_right"], cell["mu_left"],
+                         cell["mu_straight"], cell["mu_right"],
+                         cell["total_rate_per_approach"], realised))
 
     print()
     print("written: %d files in %s" % (len(written), OUT_DIR))
     cross_check_routes_txt()
 
     tight = []
-    for level in sorted(TABLE1):
-        cells = density_cell(level)
-        for lanes in (2, 3, 4):
-            mu_s = cells[lanes]["mu_straight"]
-            mu_t = cells[lanes]["mu_turn"]
-            if min(mu_s, mu_t) < 3 * SIGMA:
-                tight.append((level, lanes, mu_s, mu_t))
+    for ratio in ratios:
+        for level in sorted(TABLE1):
+            for lanes in (2, 3, 4):
+                if wanted and (lanes, level) not in wanted:
+                    continue
+                cell = ratio_cell(level, lanes, ratio)
+                if min(cell["mu_left"], cell["mu_straight"],
+                       cell["mu_right"]) < 3 * SIGMA:
+                    tight.append((ratio, level, lanes, cell))
 
     print()
     print("ADVISORY: headway spread is fixed at sigma=%.1f s (original convention)."
@@ -214,9 +288,10 @@ def main():
     print("  Files whose mean headway is below %.1f s will draw negative"
           % (3 * SIGMA))
     print("  intervals; SUMO turns those into immediate departures. Affected:")
-    for level, lanes, mu_s, mu_t in tight:
-        print("    lanes%d_density%d.rou.xml : straight %.3f s, turn %.3f s"
-              % (lanes, level, mu_s, mu_t))
+    for ratio, level, lanes, cell in tight:
+        print("    lanes%d_density%d%s : L %.3f s, S %.3f s, R %.3f s"
+              % (lanes, level, "" if ratio == "121" else "_r" + ratio,
+                 cell["mu_left"], cell["mu_straight"], cell["mu_right"]))
     return 0
 
 
