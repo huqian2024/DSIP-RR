@@ -1,15 +1,12 @@
-# Plot manifest -- PSL baseline figures
-
-Provenance for `psl_baseline`.
+# Plot manifest -- PSL baseline data
 
 | artefact | source | note |
 |---|---|---|
-| `psl_traffic_summary.csv` | `results/psl_final/exec-d*/metrics.json`, `results/psl_exec/cross3-d*-none/metrics.json` | 1 run per (density, control) |
-| `timeseries_all.csv` | same runs, `timeseries.csv` | 10 s logging, paper section III-B |
-| `fig_timeloss.pdf/.png` | `timeseries_all.csv` | mean over the active fleet |
-| `fig_speed.pdf/.png` | `timeseries_all.csv` | mean instantaneous speed |
+| `psl_traffic_by_seed.csv` | `results/psl_tr/*/metrics.json` | one row per (density, control, seed); plot from this file |
+| `psl_traffic_summary.csv` | the same | mean/min/max over seeds |
+| `timeseries_all.csv` | `*/timeseries.csv` | 10 s logging, paper section III-B |
 
 Data class: **NEW_BASELINE_RAW** (no historical DSIP data).
-Runs: cross3 only, seed 81890, 1000 s, 0.1 s step, w=13.9.
-No box plot is drawn: one run per cell cannot form a distribution
-(AGENTS.md 6.3).
+Runs: cross3 only, seeds 81890,81891,81892,81893,81894, 1000 s, 0.1 s step, w=13.9.
+Figures are generated only with `--figures` (author instruction:
+prepare the data first).

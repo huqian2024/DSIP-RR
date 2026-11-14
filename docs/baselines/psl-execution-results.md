@@ -244,46 +244,52 @@ Figs. 2–4 / as2–as4 的横轴）、`entry_events.csv`（逐车计划/放行/
 
 ---
 
-## 8. 可对比、可直接出图的结果（已生成）
+## 8. 可对比的数据（最终版：5 seeds × 3 densities；按要求**暂不出图**）
 
-脚本：`evaluation/psl_baseline_report.py`（一条命令同时出表和图）。
+脚本：`evaluation/psl_baseline_report.py`。图默认**关闭**，需要时加 `--figures`。
 
 ```bash
+# 只要数据（默认）
 python3 evaluation/psl_baseline_report.py
+# 需要图时
+python3 evaluation/psl_baseline_report.py --figures
 ```
 
-产物在 `evaluation/figures/psl_baseline/`：
+产物 `evaluation/figures/psl_baseline/`：
 
-| 文件 | 用途 |
+| 文件 | 内容 |
 |---|---|
-| `psl_traffic_summary.csv` | **6 行**（3 密度 × 2 对照），列含 TimeLoss 序列/逐车、均速序列/逐车、行程时间、近距、急减速、插入/完成、进入偏差 p50 |
-| `timeseries_all.csv` | **606 行**（密度 × 对照 × 10 s 采样），列：`density, control, time_s, mean_time_loss_s, mean_speed_mps, n_active` |
-| `fig_timeloss.pdf/.png` | 三个密度分面板，PSL vs 无控制的**平均 TimeLoss 时序**（对应稿件 Figs. 2–4 口径） |
-| `fig_speed.pdf/.png` | 同上，**平均速度时序**（对应 as2–as4 口径） |
-| `plot_manifest.md` | 每个产物的来源、数据类别（`NEW_BASELINE_RAW`）、1 run/cell 声明 |
+| **`psl_traffic_by_seed.csv`** | **30 行** = 3 密度 × 2 对照 × 5 seeds。**这是画箱线图/做配对检验要用的文件**，不做任何预平均 |
+| `psl_traffic_summary.csv` | 6 行，按密度×对照给出 mean / min / max / n_seeds |
+| `timeseries_all.csv` | **3030 行**，10 s 采样长表（density, control, seed, time_s, mean_time_loss_s, mean_speed_mps, n_active） |
+| `plot_manifest.md` | 来源、数据类别 `NEW_BASELINE_RAW`、种子清单、"图需 `--figures`" 说明 |
 
-**图的口径**（照 `AGENTS.md` §6）：纯脚本生成、矢量 `.pdf` + 300 dpi `.png` 双份、
-横轴 10 s 采样与稿件一致、黑/灰 + 实线/虚线保证灰度可辨、标题里写明
-"1 seed, 1 run per cell"。**没有画箱线图**——每个格子只有 1 次运行，构不成分布（§6.3）。
+### 8.1 结果（mean [min, max]，5 seeds，cross3，1000 s，w=13.9）
 
-**要扩到多种子**（届时可出箱线图）：
+| 密度 | 对照 | TimeLoss 序列均 (s) | TimeLoss 逐车 (s) | 均速 (m/s) | 近距 <1.5 m | 急减速 |
+|---|---|---|---|---|---|---|
+| d1 | 无控制 | 6.79 [6.63, 6.99] | 10.19 | 7.32 | 106.0 | — |
+| d1 | **PSL** | 11.65 [9.65, 19.10] | 14.44 | 6.17 | **54.6** | — |
+| d3 | 无控制 | 6.82 [6.66, 6.96] | 10.20 | 7.32 | 110.8 | — |
+| d3 | **PSL** | 10.09 [9.94, 10.38] | 14.38 | 6.25 | **53.8** | — |
+| d5 | 无控制 | 6.75 [6.68, 6.85] | 10.10 | 7.34 | 107.0 | — |
+| d5 | **PSL** | 10.78 [10.39, 11.53] | 15.04 | 6.12 | **48.2** | — |
 
-```bash
-for S in 81891 81892; do
-  for D in 1 3 5; do
-    python3 baselines/psl_sumo/demand.py --net scenarios/original/cross3.net.xml \
-      --rou scenarios/flows/lanes3_density$D.rou.xml --typ scenarios/original/types.typ.xml \
-      --instance-dir results/psl_matrix/instances/cross3_trim \
-      --out-dir results/psl_final/dem-d${D}-s$S --end 1000 --seed $S --reference-source flows
-    python3 baselines/psl_sumo/plan_scenario.py \
-      --instance-dir results/psl_matrix/instances/cross3_trim \
-      --demand-dir results/psl_final/dem-d${D}-s$S \
-      --run-dir results/psl_final/plan-d${D}-s$S --packer psl --speed-mode limit
-    python3 baselines/psl_sumo/execute_plan.py --net scenarios/original/cross3.net.xml \
-      --rou scenarios/flows/lanes3_density$D.rou.xml --typ scenarios/original/types.typ.xml \
-      --instance-dir results/psl_matrix/instances/cross3_trim \
-      --schedule results/psl_final/plan-d${D}-s$S/schedule.csv \
-      --out-dir results/psl_final/exec-d${D}-s$S --seed $S --end 1000 --control psl
-  done
-done
-```
+种子间很紧（除 d1-PSL 的 TimeLoss 序列有一个 19.10 的离群，来自某一 seed 的长尾排队）。
+
+### 8.2 结论（与 §7 一致，现在是 5 seeds 支撑）
+
+1. **安全性**：近距事件 **106–110.8 → 48.2–54.6**（约减半）。
+2. **效率**：逐车 TimeLoss **10.1–10.2 → 14.4–15.0 s**（+42 %）；均速 **7.32 → 6.12–6.25 m/s**。
+3. **口径**：仍是"PSL 时刻表 + 停走执行"；`entry_deviation_p50_s` 在-by-seed 表里逐行可查（约 20–27 s）。
+
+### 8.3 数据集规模
+
+| 项 | 值 |
+|---|---|
+| 运行数 | 15 PSL + 15 无控制 = **30** |
+| 种子 | 81890–81894（`experiments/seeds_30.txt` 的前 5 个） |
+| 密度 | 1 / 3 / 5（MinD / MedD / MaxD） |
+| 路网 | cross3（六车道） |
+| 每 run | 1000 s，0.1 s 步长，`setStop`/`resume` |
+| 原始产物 | `results/psl_tr/{dem,psl,exec,none}-d{D}-s{S}/` |
