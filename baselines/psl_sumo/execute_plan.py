@@ -50,6 +50,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import kinematics as kin  # noqa: E402
+
 ROOT = Path(__file__).resolve().parents[2]
 STOP_OFFSET = 3.0          # m, hold this far before the end of the approach lane
 RESUME_TOL = 1.5           # m, resume only once the vehicle is this close to its stop
@@ -63,7 +66,7 @@ def sha256(path):
     return h.hexdigest()
 
 
-def load_schedule(path, paths_by_prefix):
+def load_schedule(path, paths_by_prefix, speed_model="constant"):
     """vehicle id -> {stopline_time, speed, earliest_arrival, coordinated}."""
     out = {}
     with open(path, newline="") as fh:
@@ -77,8 +80,13 @@ def load_schedule(path, paths_by_prefix):
             # point).  ``offsets[0]`` is that point's distance from the stop
             # line, measured along the path, so the stop-line crossing time is
             # in_time - offsets[0]/speed.
+            lead = p["offsets"][0]        # distance from the stop line to vertex 0
+            if speed_model == "accelerating":
+                stopline = tick - kin.travel_time(lead)
+            else:
+                stopline = tick - lead / speed
             out[r["vehicle_id"]] = {
-                "stopline_time": tick - p["offsets"][0] / speed,
+                "stopline_time": stopline,
                 "planned_entry": tick,
                 "speed": speed,
                 "earliest_arrival": float(r["earliest_arrival"]),
@@ -175,6 +183,10 @@ def main(argv=None):
     ap.add_argument("--step-length", type=float, default=0.1)
     ap.add_argument("--log-interval", type=float, default=10.0,
                     help="sampling interval of the paper's figures (10 s)")
+    ap.add_argument("--speed-model", choices=("constant", "accelerating"),
+                    default="constant",
+                    help="must match the model the schedule was planned with; "
+                         "accelerating = vehicle enters from rest at the vType accel")
     ap.add_argument("--control", choices=("psl", "none"), default="psl",
                     help="psl = enforce the schedule; none = uncontrolled control")
     ap.add_argument("--mingap-factor", type=float, default=0.5,
@@ -190,7 +202,7 @@ def main(argv=None):
     out.mkdir(parents=True, exist_ok=True)
     paths = json.loads((inst / "paths.json").read_text())["paths"]
     paths_by_prefix = {p["prefix"]: p for p in paths}
-    sched = load_schedule(args.schedule, paths_by_prefix)
+    sched = load_schedule(args.schedule, paths_by_prefix, args.speed_model)
     if args.control == "none":
         sched = {}
 

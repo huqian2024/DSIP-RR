@@ -48,6 +48,7 @@ PSL_COLUMNS = ["in_point", "out_point", "length", "earliest_arrival", "in_time",
                "out_time_head", "out_time_tail", "time_spend", "speed",
                "importance"]
 EPS = 1e-9
+LANE_CLEAR = 8.0        # m, vehicle length 5 + minGap 3: headway at a stop line
 
 
 def sha256(path):
@@ -99,7 +100,20 @@ class ReservationGuard:
         self.n_pushes = 0
 
     # -- internal -------------------------------------------------------
-    def _windows(self, prefix, release, speed):
+    def _lane_window(self, release, speed):
+        """Time a vehicle needs to clear the stop line of its own lane.
+
+        Without this the planner happily places two vehicles of the same lane at
+        almost the same instant: ``--trim-ends`` removed the stop-line vertices,
+        so the conflict-point model alone has no notion of a per-lane queue and
+        the resulting schedule cannot be executed.
+        """
+        if self.mode == "constant":
+            return release, release + LANE_CLEAR / (speed or self.vmax)
+        return release, release + kin.travel_time(LANE_CLEAR, self.accel,
+                                                  self.vmax)
+
+    def _windows(self, prefix, release, speed, lane=None):
         p = self.paths[prefix]
         passage = kin.li(p["move"])
         out = []
@@ -108,6 +122,9 @@ class ReservationGuard:
                                    speed=speed, accel=self.accel, vmax=self.vmax,
                                    w=self.w)
             out.append((self.gid[name], t0, t1))
+        if lane is not None:
+            t0, t1 = self._lane_window(release, speed)
+            out.append((("lane", lane), t0, t1))
         return out
 
     def _conflict_end(self, windows):
@@ -129,11 +146,11 @@ class ReservationGuard:
         return worst
 
     # -- public ---------------------------------------------------------
-    def earliest(self, prefix, release_min, speed, max_iter=20000):
-        """Smallest release >= ``release_min`` that clears every conflict point."""
+    def earliest(self, prefix, release_min, speed, lane=None, max_iter=20000):
+        """Smallest release >= ``release_min`` that clears every resource."""
         cand = release_min
         for _ in range(max_iter):
-            w = self._windows(prefix, cand, speed)
+            w = self._windows(prefix, cand, speed, lane=lane)
             self.n_checks += 1
             end = self._conflict_end(w)
             if end is None:
@@ -408,7 +425,9 @@ def main(argv=None):
             # "psl" reports exactly what the solver returned.
             speed = (row["speed"] if args.speed_mode == "psl"
                      else min(row["speed"], args.vmax))
-            release, windows = guard.earliest(r["prefix"], row["in_time"], speed)
+            release, windows = guard.earliest(
+                r["prefix"], row["in_time"], speed,
+                lane=(r["from_edge"], r.get("lane")))
             guard.commit(windows)
             if release > row["in_time"] + 1e-6:
                 shifts += 1
