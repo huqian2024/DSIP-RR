@@ -253,6 +253,34 @@ def test_d03_stop_failure_not_recorded(model):
           str([e for e in ctrl2.events if e[0] == "too_close"]))
 
 
+def test_d01_d02_booking_bounds():
+    """D-01: the fast/slow ETA band must have non-zero width.
+    D-02: ``dt_safe`` must be counted exactly once (inside the window).
+    """
+    from baselines.fcfs_sumo.booking import (A_MAX, A_MIN, WindowBooker,
+                                            travel_time)
+
+    check("D-01 slow bound is genuinely slower than the fast bound",
+          A_MIN < A_MAX, "A_MIN=%s A_MAX=%s" % (A_MIN, A_MAX))
+    t_fast = travel_time(20.0, 0.0, A_MAX)
+    t_slow = travel_time(20.0, 0.0, A_MIN)
+    check("D-01 ETA band has non-zero width", t_slow > t_fast + 1e-9,
+          "fast %.3f s, slow %.3f s" % (t_fast, t_slow))
+
+    b = WindowBooker.__new__(WindowBooker)      # bypass geometry loading
+    b.book = {("k",): [(10.0, 12.0)]}
+    b.dt_safe = 2.0
+    b.n_reject = 0
+    # The booked window already ends at 12.0 with dt_safe inside it, so a plan
+    # starting exactly at 12.0 must be accepted (no second dt_safe).
+    check("D-02 touching windows are accepted (dt_safe counted once)",
+          b.free([(("k",), 12.0, 14.0)], 0.0) is True,
+          "n_reject=%d" % b.n_reject)
+    check("D-02 a real overlap is still rejected",
+          b.free([(("k",), 11.0, 13.0)], 0.0) is False,
+          "n_reject=%d" % b.n_reject)
+
+
 def main():
     model = test_conflict_model()
     test_queue(model)
@@ -260,6 +288,7 @@ def main():
     test_engine(model)
     test_no_control_calls()
     test_d03_stop_failure_not_recorded(model)
+    test_d01_d02_booking_bounds()
     print("-" * 78)
     print("failures:", failures if failures else "none")
     return 0 if not failures else 1

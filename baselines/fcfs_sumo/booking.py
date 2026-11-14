@@ -49,8 +49,13 @@ from shapely.geometry import LineString, Point
 DT_SAFE_DEFAULT = 2.0
 V_DEFAULT = 13.9          # m/s, scenarios/original/types.typ.xml maxSpeed
 A_MAX = 1.0               # m/s^2, types.typ.xml accel  (best case)
-A_MIN = 1.0               # m/s^2, effective floor (accel 1.0 halved: queueing,
-                          # junction friction); used for the late bound only
+# D-01: the late bound must use a genuinely slower profile, otherwise the
+# "best case .. worst case" band has zero width and any vehicle that is slowed
+# (queueing, yielding, setStop) lands outside its own booking while ``free()``
+# still believes the resource was released.  0.5 m/s^2 is half the vType accel,
+# which is what this comment always claimed; it is a modelling floor, not a
+# measured value, and it is NOT compensated by shrinking dt_safe.
+A_MIN = 0.5               # m/s^2, conservative late bound (half of accel)
 MERGE_CLEAR_DEFAULT = 27.8  # m  = v_max * dT_safe: how far past the merge point a
                             #     vehicle must travel before the exit-lane head
                             #     is considered free again
@@ -219,7 +224,13 @@ class WindowBooker:
             return False
         for key, t0, t1 in plan:
             for b0, b1 in self.book.get(key, ()):
-                if t0 < b1 + self.dt_safe and b0 < t1 + self.dt_safe:
+                # D-02: dT_safe is ALREADY inside every booked window (see
+                # ``plan``, which returns ``t1 = ... + self.dt_safe``), so it
+                # must not be added a second time here.  Adding it twice made the
+                # realised safety gap about 2x the design value, which suppressed
+                # throughput and contradicted the ``_release_lane`` comment in
+                # control.py.
+                if t0 < b1 and b0 < t1:
                     self.n_reject += 1
                     return False
         return True

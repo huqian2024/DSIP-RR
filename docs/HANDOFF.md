@@ -1400,8 +1400,19 @@ scenarios/flows/{generate_flows.py,validate_flows.py,README.md} + 15 个 .rou.xm
 得到 `rc=0`、`Failed to resume` **119 → 18**、无 heap/连接错误、碰撞事件 0、
 `held ok 104 / stop_failed 3 / release_failed 0`。
 
-⇒ 扫描崩溃的直接原因已消除；D-01/D-02（ETA 窗口带为零、`Δt_safe` 重复计入）
-**仍未修**，重跑矩阵前必须先处理。
+**D-01 / D-02 同日修复（2026-11-14 收尾）**：
+
+| 缺陷 | 修复 |
+|---|---|
+| D-01 快/慢 ETA 用同一加速度（窗口带宽度 = 0） | `A_MIN = 0.5 m/s²`（= accel 的一半）。核验 `travel_time(20 m, v0=0)` 6.325 → 8.944 s，**带宽度 0 → 2.62 s**；未缩小 `dt_safe` 作补偿 |
+| D-02 `Δt_safe` 重复计入（实际间隔 ≈ 2× 设计值） | 取"窗口内已含间隔"：`plan()` 的 `t1` 保留 `+dt_safe`，`free()` 改为纯区间相交 |
+
+**实测后果（如实记录）**：`--end 100 --seed 81890` 控制侧碰撞 **0 → 1** 次（无控制 2 次）；
+seed 81891/81892/81893 均为 **0** ⇒ 孤立事件、非系统性。
+**结论**：`dt_safe = 2.0 s` 在本场景处于**临界**，正式扫描前必须重新标定。
+这是 FCFS 目前**唯一**未收敛的项。
+
+单测：`test_logic` 现含 D-01/D-02/D-03 共 14 项断言，全部通过（`failures: none`）。
 
 **PSL 交通侧数据（5 seeds × 3 densities）**：`results/psl_tr/`，
 由 `evaluation/psl_baseline_report.py` 汇总为
