@@ -189,7 +189,8 @@ def sha256(path):
     return h.hexdigest()
 
 
-def flow_departures(rou_path, routes, paths, vt, seed_offset=0):
+def flow_departures(rou_path, routes, paths, vt, seed_offset=0,
+                    connections=None):
     """Generate departures from the ``<flow>`` definitions themselves.
 
     Why not read them back from a SUMO run?  At HighD/MaxD the approach edges
@@ -204,6 +205,11 @@ def flow_departures(rou_path, routes, paths, vt, seed_offset=0):
     ``seed`` attribute, so it is reproducible.  It is statistically equivalent to
     SUMO's realisation but not bit-identical -- recorded in the manifest as
     ``demand_source: flow_resample``.
+
+    ``connections`` is used to spread vehicles over the lanes that really serve
+    their movement.  Without it every straight vehicle would be pinned to the
+    movement's single median-lane path, which understates the number of stop
+    lines (3 per approach, not 1) and therefore triples the modelled delay.
     """
     import random
 
@@ -211,9 +217,9 @@ def flow_departures(rou_path, routes, paths, vt, seed_offset=0):
     by_pair = {}
     for p in paths:
         by_pair.setdefault((p["from_edge"], p["to_edge"]), []).append(p)
-    lane_len = {}
-    for e in root.iter("lane"):                # not present in .rou.xml
-        lane_len[e.get("id")] = float(e.get("length"))
+    pair_lanes = {}
+    for c in (connections or []):
+        pair_lanes.setdefault((c["from"], c["to"]), set()).add(c["fromLane"])
 
     departures, route_of = {}, {}
     for fl in root.findall("flow"):
@@ -240,12 +246,17 @@ def flow_departures(rou_path, routes, paths, vt, seed_offset=0):
             if t > end:
                 break
             vid = "%s.%d" % (fl.get("id"), k)
-            path = cand[rng.randrange(len(cand))]
+            if pair_lanes.get((route_edges[0], route_edges[-1])):
+                lanes = sorted(pair_lanes[(route_edges[0], route_edges[-1])])
+                lane = lanes[rng.randrange(len(lanes))]
+            else:
+                lane = cand[rng.randrange(len(cand))]["fromLane"]
+            match = [p for p in cand if p["fromLane"] == lane]
+            path = match[0] if match else cand[0]
             pos = rng.uniform(0.0, max(1.0, path["length"] - 15.0))
             speed = rng.uniform(0.0, vt["maxSpeed"])
             departures[vid] = {"t": t, "pos": pos, "speed": speed,
-                               "lane": "%s_%d" % (path["from_edge"],
-                                                  path["fromLane"])}
+                               "lane": "%s_%d" % (path["from_edge"], lane)}
             route_of[vid] = route_edges
     return departures, route_of
 
@@ -357,7 +368,8 @@ def main(argv=None):
         # demand taken from the flow definitions, independent of what SUMO could
         # insert (see flow_departures())
         departures, vehroute_routes = flow_departures(
-            args.rou, routes, paths, vt, seed_offset=args.seed)
+            args.rou, routes, paths, vt, seed_offset=args.seed,
+            connections=connections)
         cmd, artifact, log = ["flow_resample"], None, None
     else:
         cmd, artifact, vehroute, log = run_reference_sumo(
