@@ -76,15 +76,12 @@ def load_schedule(path, paths_by_prefix, speed_model="constant"):
                 continue                       # conflict-free movement: no gate
             tick = float(r["in_time"])
             speed = float(r["speed"]) or 13.9
-            # ``in_time`` is the arrival at trajectory[0] (the first conflict
-            # point).  ``offsets[0]`` is that point's distance from the stop
-            # line, measured along the path, so the stop-line crossing time is
-            # in_time - offsets[0]/speed.
-            lead = p["offsets"][0]        # distance from the stop line to vertex 0
-            if speed_model == "accelerating":
-                stopline = tick - kin.travel_time(lead)
-            else:
-                stopline = tick - lead / speed
+            # ``in_time`` is the schedule's stop-line crossing time: the guard
+            # builds every conflict-point window as ``release + f(offset)`` with
+            # ``offsets`` measured from the stop line, so the release time *is*
+            # the crossing time.  (The earlier version subtracted
+            # ``offsets[0]/speed``, which released every vehicle ~0.6 s early.)
+            stopline = tick
             out[r["vehicle_id"]] = {
                 "stopline_time": stopline,
                 "planned_entry": tick,

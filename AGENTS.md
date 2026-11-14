@@ -86,7 +86,7 @@ Rules that remain in force:
 |---|---|---|
 | **P0** | **PSL baseline**: compile/run/SUMO adaptation, pilot results | **active** |
 | P1 | Minimal-necessary manuscript revision (contribution boundary vs MMD; PSL figure/table slots) | active, change list only |
-| **P2** | **DSIP full reconstruction** | **PAUSED** (see §"DSIP reconstruction scope") |
+| **P2** | **DSIP full reconstruction** | **PLANNED (not started)**, gated on the baseline (see §"DSIP reconstruction scope") |
 | P3 | PSB, FCFS large sweep, CCAM-DI, other baselines | **DEFERRED** |
 
 Rationale: both R1 and R2 make the missing credible, reproducible AIM comparison the
@@ -107,7 +107,7 @@ Baseline structure (decision of 2026-11-07; status column updated 2026-11-14):
 - **FCFS** is retained and must be *corrected*, not replaced; its conservative parameters are documented in `docs/decisions/fcfs-parameters.md`.
 - **PSL is the only baseline in active development.** Do not widen to PSB or launch the FCFS/PSL sweeps while PSL still lacks a closed-loop execution layer.
 - **CCAM-DI** is explicitly deprioritised; do not sneak it in.
-- **DSIP reconstruction is PAUSED**; resuming requires a new explicit author instruction *and* PSL having passed its pilot (see §"DSIP reconstruction scope").
+- **DSIP reconstruction is PLANNED, not started**; it begins only on a new explicit author instruction *and* once the baseline gate is met (see `docs/dsip_reconstruction/reconstruction-plan.md`).
 - **Literature:** add and discuss Klimke et al., *“A Real-World Evaluation of Two Cooperative Intersection Management Approaches,”* DOI **10.1109/MITS.2025.3643199**. No official drop-in reproduction code has yet been established; do not assert definitively that no code exists. Do not claim DSIP empirically outperforms that method without matched experiments.
 - **Traffic-turning-demand sensitivity:** supplementary DSIP tests with varying left/straight/right movement ratios are **recorded as an open R1 item only**. First check whether it can be produced by editing SUMO route/flow files without reviving the DSIP model; if it requires the reconstruction, record the dependency and do not resume the reconstruction.
 - **Small optional/targeted studies:** CBS planning-time distribution/timeouts, modest communication latency/jitter, and trajectory feasibility checks when the recovered system supports valid tests.
@@ -403,12 +403,17 @@ Use line plots only when showing temporal behavior is necessary.
 
 ### DSIP reconstruction scope (added 2026-11-07, binding)
 
-> **STATUS: PAUSED as of 2026-11-14 (author instruction).**
+> **STATUS: PLANNED / NOT STARTED (author instruction, 2026-11-14 evening).**
+> The author has scheduled the reconstruction and asked for a written plan first.
 > Do **not** download/re-download DSIP or MMD checkpoints, rebuild the diffusion
 > inference environment, restore model weights, rewrite DSIP inference code, or
-> start any part of a DSIP reconstruction.
-> **Resume only if** (a) the author gives a new explicit instruction, **and**
-> (b) PSL has passed its Stage 4 pilot.
+> start any stage of the DSIP reconstruction yet.
+> **Start only when BOTH** (a) the author gives the explicit "start" instruction,
+> **and** (b) the baseline gate is met: at least one AIM baseline produces
+> reportable numbers on the paper protocol **and** its execution/comparison basis
+> is settled. Plan, gate definition and the four new statistics (max acceleration,
+> jerk, delay/packet-loss sensitivity, CBS timeout/fallback) are in
+> `docs/dsip_reconstruction/reconstruction-plan.md`.
 > **Turning-ratio sensitivity (R1):** recorded as an open item. First check whether it
 > can be answered by editing SUMO route/flow files without reviving the model. If it
 > needs the reconstruction, record that dependency — do not resume.

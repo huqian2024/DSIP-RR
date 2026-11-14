@@ -1,6 +1,6 @@
 # HANDOFF — DSIP-RR 当前状态交接
 
-- 更新日期：**2026-11-14**（优先级重置：**PSL 升为 P0 并首次跑通**；DSIP 全面复原 **PAUSED**；
+- 更新日期：**2026-11-14**（优先级重置：**PSL 升为 P0 并首次跑通**；DSIP 全面复原 **PLANNED（未启动）**；
   详见 **§15**。历史记录见 §10–§13，不覆盖、不删除）
 - 本文档是**当前唯一权威的资产与边界说明**。与它冲突的旧报告一律作废（见 §4）。
 
@@ -12,7 +12,7 @@
 > | **PSL 预编译 `AIMPBS`** | **✅ 可运行**：exit 0、CPLEX `optimal`、无许可报错、3 次同输入输出 hash 一致 |
 > | **PSL × SUMO 适配** | **✅ 规划侧跑通**：`baselines/psl_sumo/` 从 cross2/3/4 生成图模型；15 车 / 25 车均 `optimal`，独立校验 64 / 175 对冲突顶点，**0 违规** |
 > | **PSL 闭环执行（回灌 SUMO）** | **❌ 未实现** ⇒ 目前**不能**报告吞吐/行程时间/碰撞数 |
-> | **DSIP 全面复原** | **⏸ PAUSED**（作者 2026-11-14 指令）；恢复条件见 §15.4 |
+> | **DSIP 全面复原** | **PLANNED / 未启动**（作者 2026-11-14 晚：先写计划，baseline 成功后再做）；计划见 `docs/dsip_reconstruction/reconstruction-plan.md` |
 > | DSIP 重建 Stage 0/1 文档 | 已产出（§13），**保留但暂停使用** |
 > | FCFS | 单 run 验证通过；**12 项缺陷未修**；**大规模扫描 DEFERRED**（旧 227/450 数据不得使用） |
 > | PSB | **DEFERRED**：不能编译、无预编译二进制 |
@@ -1131,7 +1131,7 @@ scenarios/flows/{generate_flows.py,validate_flows.py,README.md} + 15 个 .rou.xm
 
 > 作者指令：现阶段最严重的不是论文格式、也不是 DSIP 模型，而是
 > **缺少可信、可复现的无信号交叉口 AIM 方法对比实验**（R1-M1、R2-2 都指向这一点）。
-> 因此 **PSL 升为 P0**，**DSIP 全面复原 PAUSED**，其余 baseline **DEFERRED**。
+> 因此 **PSL 升为 P0**，**DSIP 全面复原** 由 PAUSED 转为 **PLANNED（未启动）**，其余 baseline **DEFERRED**。
 
 ### 15.1 优先级（binding）
 
@@ -1139,7 +1139,7 @@ scenarios/flows/{generate_flows.py,validate_flows.py,README.md} + 15 个 .rou.xm
 |---|---|---|
 | **P0** | PSL：编译/运行/SUMO 适配/小规模 pilot | **进行中**（Stage 0–3 已完成，Stage 4 未开始） |
 | P1 | 论文**最小必要**修改：DSIP 与 MMD 的贡献边界；PSL 图表位置的预留 | 仅清单阶段，**未动正文** |
-| **P2** | **DSIP 全面复原** | **⏸ PAUSED** |
+| **P2** | **DSIP 全面复原** | **PLANNED（未启动）**，需 baseline 闸门通过 |
 | P3 | PSB、FCFS 大规模扫描、CCAM-DI、其他 baseline | **DEFERRED** |
 
 同步更新位置：`AGENTS.md` §2（priority reset + baseline 表 + PSL Stage 0–5 表）、
