@@ -142,9 +142,14 @@ Additional binding notes (2026-11-14 evening):
   six runs validated, ~4.3 M conflict-vertex pairs, **0 violations**.
 - Completion is **independent of lane count** (70.1 / 76.2 / 70.7 % on 2/3/4 lanes) while demand
   scales with lanes, because one median-lane path is modelled per movement.
-- The ceiling is the **upstream conflict model, not PSL**: a solver-free greedy packer reaches
-  only 1.46 veh/s, larger windows and per-lane paths do not help, and no conflict group exceeds
-  55 % utilisation. Occupancy is `Li/w + Li/v` with `w = 7` hard-coded in the binary.
+- The ceiling at the upstream default is the **conflict model, not PSL**: a solver-free greedy
+  packer reaches only 1.46 veh/s, larger windows and per-lane paths do not help, and no conflict
+  group exceeds 55 % utilisation. Occupancy is `Li/w + Li/v` with `w = 7` in the binary.
+- **`--w` calibrates the passage speed in the ADAPTER's enforcement model only** (the binary is
+  unmodified and still plans with 7). Setting `w = 13.9 m/s` (= `types.typ.xml` maxSpeed, which
+  makes `Li/w + Li/v = 2 Li/v`) lifts MinD completion to **0.952-0.979 over three seeds**
+  (mean 0.967), mean entry delay 11.5-21.0 s, all validated with 0 violations. Report it as
+  "occupancy calibrated to the road speed limit", not as the upstream default.
 - Reportable: completion fraction / entry delay / effective rate **with** those controls.
   Not reportable: throughput, travel time, collisions; and any direct "PSL is worse than DSIP"
   claim (different conflict models, no matched rerun).

@@ -86,7 +86,8 @@ class ReservationGuard:
     candidate release time until every conflict point on the path is free.
     """
 
-    def __init__(self, gid, paths_by_prefix, mode, accel, vmax):
+    def __init__(self, gid, paths_by_prefix, mode, accel, vmax, w=kin.W):
+        self.w = w
         self.gid = gid
         self.paths = paths_by_prefix
         self.mode = mode
@@ -104,7 +105,8 @@ class ReservationGuard:
         out = []
         for name, off in zip(p["vertices"], p["offsets"]):
             t0, t1 = kin.occupancy(release, off, passage, mode=self.mode,
-                                   speed=speed, accel=self.accel, vmax=self.vmax)
+                                   speed=speed, accel=self.accel, vmax=self.vmax,
+                                   w=self.w)
             out.append((self.gid[name], t0, t1))
         return out
 
@@ -281,6 +283,9 @@ def main(argv=None):
                     help="psl = use the solver's own ordering (the baseline); "
                          "greedy = diagnostic control: no solver, insert in ETA "
                          "order through the same reservation guard")
+    ap.add_argument("--w", type=float, default=kin.W,
+                    help="conflict-point passage speed.  The solver hard-codes 7; "
+                         "any other value is a DIAGNOSTIC surrogate, not PSL")
     ap.add_argument("--horizon", type=float, default=1000.0,
                     help="demand horizon (s).  The paper protocol is 1000 s; "
                          "completion is measured against it")
@@ -313,7 +318,8 @@ def main(argv=None):
         shutil.copy2(src, run / name)
 
     model = "accelerating" if args.speed_mode == "kinematic" else "constant"
-    guard = ReservationGuard(gid, paths_by_prefix, model, args.accel, args.vmax)
+    guard = ReservationGuard(gid, paths_by_prefix, model, args.accel, args.vmax,
+                             w=args.w)
 
     # Receding horizon over *overlapping* windows: each round plans
     # ``window_size`` pending vehicles jointly and commits only the earliest
@@ -413,7 +419,7 @@ def main(argv=None):
                                       accel=args.accel, vmax=args.vmax)
             tail = kin.occupancy(release, row["length"], passage, mode=model,
                                  speed=speed, accel=args.accel,
-                                 vmax=args.vmax)[1]
+                                 vmax=args.vmax, w=args.w)[1]
             schedule.append({
                 "load_index": len(schedule),
                 "vehicle_id": r["vehicle_id"],
@@ -458,7 +464,7 @@ def main(argv=None):
                                   accel=args.accel, vmax=args.vmax)
         tail = kin.occupancy(release, p["length"], passage, mode=model,
                              speed=speed, accel=args.accel,
-                             vmax=args.vmax)[1]
+                             vmax=args.vmax, w=args.w)[1]
         schedule.append({
             "load_index": len(schedule),
             "vehicle_id": r["vehicle_id"],
@@ -514,6 +520,7 @@ def main(argv=None):
         "method": "psl",
         "output_kind": "schedule_only",
         "packer": args.packer,
+        "passage_speed_w": args.w,
         "speed_mode": args.speed_mode,
         "kinematics": {"model": model, "accel": args.accel, "vmax": args.vmax,
                        "note": "upstream LP bounds are v in [3,15] but "
@@ -586,6 +593,10 @@ def main(argv=None):
         "arrival_model": manifest_in.get("arrival_model"),
         "reference_source": manifest_in.get("reference_source"),
         "speed_mode": args.speed_mode,
+        "passage_speed_w": args.w,
+        "passage_speed_w_note": "upstream SIPP.h:79 hard-codes 7; this is the "
+                                "value the ADAPTER enforces. The binary is "
+                                "unmodified and still plans with 7.",
         "batch_size": args.batch_size,
         "window_size": args.window_size,
         "kinematics_deviation": "PSL v_max=15 m/s (hard-coded) vs "

@@ -75,6 +75,9 @@ def main(argv=None):
                          "vehicle entering from rest at the typed accel")
     ap.add_argument("--accel", type=float, default=kin.ACCEL)
     ap.add_argument("--vmax", type=float, default=kin.V_LIMIT)
+    ap.add_argument("--w", type=float, default=kin.W,
+                    help="passage speed used to price a conflict point; must "
+                         "match the value the schedule was built with")
     args = ap.parse_args(argv)
 
     rows = load_plan(args.plan)
@@ -120,7 +123,7 @@ def main(argv=None):
         for vname, off in zip(p["vertices"], p["offsets"]):
             t0, t1 = kin.occupancy(r["in_time"], off, length_li,
                                    mode=args.speed_model, speed=r["speed"],
-                                   accel=args.accel, vmax=args.vmax)
+                                   accel=args.accel, vmax=args.vmax, w=args.w)
             windows.setdefault(vname, []).append((r["load_index"], t0, t1))
 
     checked, touching, violations = set(), [], []
@@ -178,7 +181,7 @@ def main(argv=None):
             "occupancy": "kinematics.occupancy(release, offset, Li, mode)",
             "speed_model": args.speed_model,
             "accel": args.accel, "vmax": args.vmax,
-            "w": W, "turn_radius_right_m": TURN_RADIUS_RIGHT,
+            "w": args.w, "turn_radius_right_m": TURN_RADIUS_RIGHT,
             "turn_radius_left_m": TURN_RADIUS_LEFT,
             "agent_length_m": AGENT_LENGTH,
             "note": "independent re-derivation of SIPP.cpp:183-380; the solver's "

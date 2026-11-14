@@ -45,19 +45,19 @@ python3 baselines/psl_sumo/demand.py \
     --instance-dir results/psl_stage3/instance_cross3_trim \
     --out-dir results/psl_stage3/demand_cross3_d1 --end 1000 --seed 81890
 
-# 3) 全时程规划
+# 3) 全时程规划（--w 13.9 = 占用模型按道路限速标定，见报告 §8）
 python3 baselines/psl_sumo/plan_scenario.py \
     --instance-dir results/psl_stage3/instance_cross3_trim \
     --demand-dir results/psl_stage3/demand_cross3_d1 \
-    --run-dir results/psl_stage3/runs/psl-cross3-d1-s81890 \
-    --speed-mode limit --window-size 40
+    --run-dir results/psl_stage3/runs/psl-cross3-d1-s81890-w13.9 \
+    --speed-mode limit --window-size 40 --packer psl --w 13.9
 
-# 4) 独立校验（速度模型必须与规划时一致）
+# 4) 独立校验（速度模型与 --w 必须和规划时一致）
 python3 baselines/psl_sumo/validate_plan.py \
-    --plan results/psl_stage3/runs/psl-cross3-d1-s81890/plan.csv \
+    --plan results/psl_stage3/runs/psl-cross3-d1-s81890-w13.9/plan.csv \
     --graph results/psl_stage3/instance_cross3_trim/graph.json \
     --paths results/psl_stage3/instance_cross3_trim/paths.json \
-    --speed-model constant
+    --speed-model constant --w 13.9
 
 # 5) 诊断
 python3 baselines/psl_sumo/group_utilisation.py \
@@ -86,11 +86,14 @@ python3 baselines/psl_sumo/group_utilisation.py \
    （约 430 万对冲突顶点，0 违规）。
 2. **上限来自上游冲突模型，不是打包**：同实例同需求，`--packer greedy`（无求解器）也到 77.4 %；
    窗口放大、per-lane 路径均无效；冲突组占用率最高 55 %。
-3. **B 方案（区域级冲突抽象）评估为不可行**：上游 `Li` 只由车长与转向半径决定，
+3. **A 已完成且无需安装 CPLEX**：`--w` 只改适配层的强制执行模型（二进制仍是 7）。
+   `--w 13.9`（= 场景限速，使 `Li/w+Li/v = 2Li/v`）→ MinD 完成率 **0.952–0.979**（三种子均值 0.967），
+   平均进入延误 11.5–21.0 s，全部独立校验 0 违规。
+4. **B 方案（区域级冲突抽象）评估为不可行**：上游 `Li` 只由车长与转向半径决定，
    与顶点几何尺度无关；把"点"换成"区"会把 27 m 冲突区按 1.07 s 计价（应为 2.3 s），
    **属安全错误，必须改 `SIPP.cpp` ⇒ 与 A 同一 CPLEX 阻塞，且偏离更大**。
    建议改 `w`（7 → ≈11 m/s）。
-4. **E1 执行层**：把 `In Time` 变成 SUMO 的 `setStop`/`resume`，才可能有交通侧指标。
+5. **E1 执行层**：把 `In Time` 变成 SUMO 的 `setStop`/`resume`，才可能有交通侧指标。
 
 详见 `docs/baselines/psl-experiment-adaptation.md`。
 

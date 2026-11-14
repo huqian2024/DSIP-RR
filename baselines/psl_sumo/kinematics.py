@@ -56,19 +56,23 @@ def travel_time(offset, accel=ACCEL, vmax=V_LIMIT):
 
 
 def occupancy(release, offset, passage, mode="accelerating",
-              speed=None, accel=ACCEL, vmax=V_LIMIT):
+              speed=None, accel=ACCEL, vmax=V_LIMIT, w=W):
     """(enter, leave) interval during which a vehicle blocks a conflict point.
 
     ``offset``  along-path distance of the conflict point from the movement's
                 entry vertex;
     ``passage`` ``Li(move)`` -- how much path length the vehicle needs to clear
                 the point with its tail;
-    ``release`` time at which the vehicle's head leaves the stop line.
+    ``release`` time at which the vehicle's head leaves the stop line;
+    ``w``       upstream's ``SIPP.h:79`` passage speed (hard-coded to 7 in the
+                binary).  It is a parameter *here* so that the effect of a
+                different value can be quantified without recompiling; the
+                solver itself always uses 7.
     """
     if mode == "constant":
         v = speed if speed else vmax
         t0 = release + offset / v
-        return t0, t0 + passage / W + passage / v
+        return t0, t0 + passage / w + passage / v
     return release + travel_time(offset, accel, vmax), \
         release + travel_time(offset + passage, accel, vmax)
 
