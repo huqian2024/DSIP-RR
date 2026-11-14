@@ -30,6 +30,7 @@ commit `5686e15092fd95a46309a118655a5ab0c23c60fa`，本地只读 checkout
 | `kinematics.py` | 冲突点占用模型的**单一事实来源**（`constant` / `accelerating`），规划器与校验器共用 |
 | `plan_scenario.py` | 全 1000 s 需求的**移动时间框顺序批规划** + 冲突点预约守卫；产出 `schedule.csv`/`summary.json` |
 | `group_utilisation.py` | 诊断：各冲突组的占用率，用来判断"延误是模型容量还是求解器问题" |
+| `execute_plan.py` | **E1 执行层**：把 `schedule.csv` 用 `setStop`/`resume` 回灌 SUMO，按论文 §III-B 出四项指标 |
 | `run_matrix.py` | **全量矩阵驱动器**：3 路网 × 5 密度 × 30 seeds = 450 run，断点续跑、可并行 |
 
 ```bash

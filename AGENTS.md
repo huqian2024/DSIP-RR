@@ -160,6 +160,13 @@ Additional binding notes (2026-11-14 evening):
   Report: `docs/baselines/psl-matrix-results.md`.
 - Demand is resampled from the `<flow>` definitions (`demand_source: flow_resample`), because the
   86 m approaches cannot insert HighD/MaxD (reading back from SUMO collapsed MaxD onto MinD).
+- **E1 execution layer implemented 2026-11-14** (`execute_plan.py`): schedule replayed into SUMO
+  with `setStop`/`resume`; metrics follow `main.tex` III-B (mean TimeLoss / mean speed over the
+  active fleet at 10 s, proximity < 1.5 m via `--collision.mingap-factor 0.5`, SUMO emergency
+  braking warnings). Result: mean **entry deviation 63-143 s**, so **the schedule is not
+  executable by stop-and-go actuation** -- the occupancy model assumes cruise-speed passage while
+  `setStop` restarts vehicles from rest. PSL therefore stays a **planning-side** baseline unless a
+  speed-profile executor is added. Pilot only (1 net x 3 densities x 1 seed): `docs/baselines/psl-execution-results.md`.
 - Reportable: completion fraction / entry delay / effective rate **with** those controls.
   Not reportable: throughput, travel time, collisions; and any direct "PSL is worse than DSIP"
   claim (different conflict models, no matched rerun).

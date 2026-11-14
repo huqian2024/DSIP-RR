@@ -1331,6 +1331,28 @@ scenarios/flows/{generate_flows.py,validate_flows.py,README.md} + 15 个 .rou.xm
 
 详细结果与全部限制：`docs/baselines/psl-matrix-results.md`。
 
+### 15.9 追加：E1 执行层（同日）
+
+`baselines/psl_sumo/execute_plan.py` 已实现：把 `schedule.csv` 用 `setStop`/`resume` 回灌 SUMO，
+并按 `main.tex` §III-B 统计 **Average TimeLoss / Average Speed（10 s 采样）/ 近距事件 <1.5 m /
+急减速事件**。cross3 × 3 密度 × seed 81890 共 6 run（含无控制对照）。
+
+**核心发现：计划表不可按停走方式执行。**
+
+| 密度 | 计划车 | 实放行 | 进入偏差 mean / p50 |
+|---|---|---|---|
+| d1 | 2378 | 1360 | **142.6 / 37.6 s** |
+| d3 | 3759 | 1950 | 62.8 / 36.5 s |
+| d5 | 5570 | 1913 | 73.7 / 38.3 s |
+
+偏差来自 ①排队导致放行即晚 ②从静止起步跨停止线要 2.6–2.7 s 而计划假设 0.63 s。
+⇒ 计划侧占用模型假设**巡航通过**，与 `setStop`/`resume` 的**静止起步**相差一个加速过程。
+
+**因此 PSL 现阶段只能作为计划侧基线**；要进交通侧对比必须先补一层速度曲线执行器。
+这一点同时正面回应 R2-3（物理可行性）。E1 数字仅 1 路网 × 3 密度 × 1 种子，**属 pilot，不可进论文**。
+
+报告：`docs/baselines/psl-execution-results.md`。
+
 **对照实验确认上限来自上游冲突模型，不是 PSL**：
 - `--packer greedy`（完全不用求解器）也只有 **1.461 veh/s**；
 - 窗口 40/60/80/120 → 1.42/1.46/1.44/1.40，放大无效；
