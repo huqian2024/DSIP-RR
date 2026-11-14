@@ -170,12 +170,96 @@ def test_no_control_calls():
           ("setStop(" in ctl) and ("resume(" in ctl), "")
 
 
+def test_d03_stop_failure_not_recorded(model):
+    """D-03: a refused ``setStop`` must not mark the vehicle as held.
+
+    Two contracts:
+      * success -> vehicle ends up in ``stopped_ok``;
+      * failure -> vehicle ends up in ``stop_failed`` and ``_try_resume`` must
+        never call ``resume()`` for it (that is what flooded the SUMO log and
+        killed the 450-run sweep at 227/450).
+    """
+    from baselines.fcfs_sumo.control import Controller, ResourceMap
+
+    class _Veh:
+        def __init__(self, refuse):
+            self.refuse = refuse
+            self.resume_calls = 0
+            self.pos = 0.0
+
+        def getRoadID(self, vid):
+            return "west2center"
+
+        def getLaneIndex(self, vid):
+            return 1
+
+        def getLanePosition(self, vid):
+            return self.pos
+
+        def getLaneID(self, vid):
+            return "west2center_1"
+
+        def getSpeed(self, vid):
+            return 10.0
+
+        def setStop(self, vid, edge, pos=None, laneIndex=None):
+            if self.refuse:
+                raise RuntimeError("too close to brake")
+            self.pos = pos
+
+        def resume(self, vid):
+            self.resume_calls += 1
+
+    class _Lane:
+        def getLength(self, lid):
+            return 90.0
+
+    class _Sim:
+        def getTime(self):
+            return 0.0
+
+    class _Tc:
+        def __init__(self, refuse):
+            self.vehicle = _Veh(refuse)
+            self.lane = _Lane()
+            self.simulation = _Sim()
+
+    rm = ResourceMap(model, granularity="movement")
+
+    ok_tc = _Tc(refuse=False)
+    ctrl = Controller(model, rm, ok_tc)
+    held = ctrl._stop_at_line("v1")
+    check("D-03 accepted setStop marks the vehicle held", held is True)
+    check("D-03 accepted -> in stopped_ok", "v1" in ctrl.stopped_ok,
+          str(sorted(ctrl.stopped_ok)))
+    check("D-03 accepted -> not in stop_failed", "v1" not in ctrl.stop_failed)
+    ctrl._try_resume("v1", 0.0)
+    check("D-03 resume called for a genuinely held vehicle",
+          ok_tc.vehicle.resume_calls == 1, str(ok_tc.vehicle.resume_calls))
+
+    bad_tc = _Tc(refuse=True)
+    ctrl2 = Controller(model, rm, bad_tc)
+    held2 = ctrl2._stop_at_line("v2")
+    check("D-03 refused setStop reports not-held", held2 is False)
+    check("D-03 refused -> in stop_failed", "v2" in ctrl2.stop_failed,
+          str(sorted(ctrl2.stop_failed)))
+    check("D-03 refused -> NOT in stopped_ok", "v2" not in ctrl2.stopped_ok)
+    ctrl2._try_resume("v2", 0.0)
+    check("D-03 resume NEVER called for a refused vehicle",
+          bad_tc.vehicle.resume_calls == 0, str(bad_tc.vehicle.resume_calls))
+    check("D-03 a refused vehicle is not retried every step",
+          ctrl2._stop_at_line("v2") is False and
+          len([e for e in ctrl2.events if e[0] == "too_close"]) == 1,
+          str([e for e in ctrl2.events if e[0] == "too_close"]))
+
+
 def main():
     model = test_conflict_model()
     test_queue(model)
     test_tracker(model)
     test_engine(model)
     test_no_control_calls()
+    test_d03_stop_failure_not_recorded(model)
     print("-" * 78)
     print("failures:", failures if failures else "none")
     return 0 if not failures else 1

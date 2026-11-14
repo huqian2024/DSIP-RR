@@ -1385,3 +1385,25 @@ scenarios/flows/{generate_flows.py,validate_flows.py,README.md} + 15 个 .rou.xm
 **继续等**，不提前删改。
 
 
+
+### 15.11 FCFS D-03 已修复（2026-11-14）
+
+按 `docs/baselines/fcfs-correctness-audit.md` 的第一优先级修复了 D-03：
+
+- `stopped` 拆成 `stopped_ok` / `stop_failed`（失败为终态，不再重试）；
+- `_try_resume` 拒绝对未成功拦停的车辆调用 `resume()`；
+- 对"SUMO 仍报 `reached: 0`"做一次 `setStop(duration=0)` 升级释放，
+  并以 `RELEASE_RETRY_LIMIT = 5` 封顶，单个卡住的车无法再刷爆日志；
+- 新增指标 `n_stopped_ok` / `n_stop_failed` / `n_release_failed` / `n_resume_forced`。
+
+**验证**：`test_logic` 8 项新断言全通过；真实运行 `--end 200 --seed 81890`
+得到 `rc=0`、`Failed to resume` **119 → 18**、无 heap/连接错误、碰撞事件 0、
+`held ok 104 / stop_failed 3 / release_failed 0`。
+
+⇒ 扫描崩溃的直接原因已消除；D-01/D-02（ETA 窗口带为零、`Δt_safe` 重复计入）
+**仍未修**，重跑矩阵前必须先处理。
+
+**PSL 交通侧数据（5 seeds × 3 densities）**：`results/psl_tr/`，
+由 `evaluation/psl_baseline_report.py` 汇总为
+`evaluation/figures/psl_baseline/{psl_traffic_by_seed,psl_traffic_summary,timeseries_all}.csv`。
+**按要求暂不出图**；脚本保留 `--figures` 开关，需要时一条命令即可生成。

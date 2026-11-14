@@ -1,31 +1,24 @@
 #!/usr/bin/env python3
-"""Collect the PSL traffic-side runs into one plottable table and two figures.
+"""Collect the PSL traffic-side runs into comparison-ready tables.
 
-Inputs (produced by ``baselines/psl_sumo/execute_plan.py``):
+Reads the runs produced by ``baselines/psl_sumo/{demand,plan_scenario,
+execute_plan}.py`` and writes, under ``--out-dir``:
 
-* ``--psl-dir``  contains ``exec-d{D}/metrics.json`` + ``timeseries.csv`` for the
-  schedule-controlled runs;
-* ``--none-dir`` contains ``cross3-d{D}-s81890-none/metrics.json`` +
-  ``timeseries.csv`` for the uncontrolled reference.
-
-Outputs, all under ``--out-dir``:
-
-* ``psl_traffic_summary.csv`` -- one row per (density, control), directly usable
-  as a table or as input to a box plot once more seeds exist;
+* ``psl_traffic_by_seed.csv`` -- one row per (density, control, seed).  This is
+  the file a box plot or a paired test needs; never pre-averaged.
+* ``psl_traffic_summary.csv`` -- one row per (density, control) with
+  mean / min / max over seeds and the seed count.
 * ``timeseries_all.csv``      -- long format, one row per (density, control,
-  logging step), for the paper-style temporal figures (Figs. 2-4 / as2-as4);
-* ``fig_timeloss.pdf/.png``   -- mean time loss over the active fleet, 10 s
-  sampling, one panel per density (main.tex section III-B);
-* ``fig_speed.pdf/.png``      -- mean instantaneous speed, same sampling;
-* ``plot_manifest.md``        -- provenance for every artefact above.
+  seed, logging step), for the paper-style temporal figures.
 
-Metric definitions follow ``paper/submitted/.../main.tex`` section III-B:
-"at each logging step ... computed over all vehicles currently active", with the
-10 s logging interval used by Figs. 2-4.  ``time_loss.series_mean`` is the mean
-of that time series; ``time_loss.per_vehicle_mean`` is the tripinfo mean.
+Figures are **off by default** (author instruction 2026-11-14: prepare the data
+first).  Pass ``--figures`` to also write ``fig_timeloss`` / ``fig_speed`` as
+``.pdf`` + ``.png``; that path is the only one that needs matplotlib.
 
-Only ONE seed exists per cell, so nothing here is a distribution: no box plots,
-no confidence bands, and every caption states the run count.
+Metric definitions follow ``paper/submitted/.../main.tex`` section III-B: the
+mean over the active fleet at each logging step, with the paper's 10 s interval.
+``time_loss_series_mean_s`` is the mean of that series; the ``per_vehicle``
+columns are the tripinfo means.
 """
 
 from __future__ import annotations
@@ -33,24 +26,29 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import statistics
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-SUMMARY_FIELDS = ["lanes", "density", "seed", "control", "runs",
-                  "time_loss_series_mean_s", "time_loss_per_vehicle_mean_s",
-                  "speed_series_mean_mps", "speed_per_vehicle_mean_mps",
-                  "travel_time_mean_s", "proximity_events_lt1p5m",
-                  "emergency_braking_events", "vehicles_inserted",
-                  "trips_completed", "entry_deviation_p50_s",
-                  "plan_completion_fraction", "plan_rate_veh_s"]
+BY_SEED_FIELDS = [
+    "lanes", "density", "control", "seed",
+    "time_loss_series_mean_s", "time_loss_per_vehicle_mean_s",
+    "speed_series_mean_mps", "speed_per_vehicle_mean_mps",
+    "travel_time_mean_s", "proximity_events_lt1p5m",
+    "emergency_braking_events", "vehicles_inserted", "trips_completed",
+    "entry_deviation_p50_s", "plan_completion_fraction", "plan_rate_veh_s",
+]
+SUMMARY_FIELDS = ["lanes", "density", "control", "n_seeds"]
+for _m in BY_SEED_FIELDS[4:]:
+    SUMMARY_FIELDS += [_m + "_mean", _m + "_min", _m + "_max"]
 
 
-def load_run(metrics_path, ts_path, density, control, seed=81890, lanes=3):
+def load_cell(metrics_path, ts_path, lanes, density, control, seed,
+              plan_summary=None):
     m = json.loads(Path(metrics_path).read_text())
     row = {
-        "lanes": lanes, "density": density, "seed": seed, "control": control,
-        "runs": 1,
+        "lanes": lanes, "density": density, "control": control, "seed": seed,
         "time_loss_series_mean_s": m["time_loss"]["series_mean"],
         "time_loss_per_vehicle_mean_s": m["time_loss"]["per_vehicle_mean"],
         "speed_series_mean_mps": m["average_speed"]["series_mean"],
@@ -61,16 +59,45 @@ def load_run(metrics_path, ts_path, density, control, seed=81890, lanes=3):
         "vehicles_inserted": m["fleet"].get("n_inserted"),
         "trips_completed": m["fleet"].get("n_trips"),
         "entry_deviation_p50_s": m["entry_deviation_s"]["p50"],
+        "plan_completion_fraction": None, "plan_rate_veh_s": None,
     }
+    if plan_summary and Path(plan_summary).exists():
+        p = json.loads(Path(plan_summary).read_text())
+        row["plan_completion_fraction"] = (p.get("completion_within_horizon")
+                                           or {}).get("fraction")
+        row["plan_rate_veh_s"] = (p.get("saturation") or {}).get(
+            "scheduled_rate_veh_s")
     ts = []
     if Path(ts_path).exists():
         for r in csv.DictReader(open(ts_path, newline="")):
-            ts.append({"density": density, "control": control,
-                       "time_s": r["time_s"],
+            ts.append({"lanes": lanes, "density": density, "control": control,
+                       "seed": seed, "time_s": r["time_s"],
                        "mean_time_loss_s": r["mean_time_loss_s"],
                        "mean_speed_mps": r["mean_speed_mps"],
                        "n_active": r["n_active"]})
     return row, ts
+
+
+def summarise(by_seed):
+    groups = {}
+    for r in by_seed:
+        groups.setdefault((r["lanes"], r["density"], r["control"]), []).append(r)
+    out = []
+    for key in sorted(groups):
+        rows = groups[key]
+        rec = {"lanes": key[0], "density": key[1], "control": key[2],
+               "n_seeds": len(rows)}
+        for metric in BY_SEED_FIELDS[4:]:
+            vals = [r[metric] for r in rows if r[metric] is not None]
+            if vals:
+                rec[metric + "_mean"] = round(statistics.fmean(vals), 4)
+                rec[metric + "_min"] = round(min(vals), 4)
+                rec[metric + "_max"] = round(max(vals), 4)
+            else:
+                rec[metric + "_mean"] = rec[metric + "_min"] = \
+                    rec[metric + "_max"] = None
+        out.append(rec)
+    return out
 
 
 def make_figures(ts_rows, out_dir, metric, ylabel, fname, title_prefix):
@@ -79,30 +106,32 @@ def make_figures(ts_rows, out_dir, metric, ylabel, fname, title_prefix):
     import matplotlib.pyplot as plt
 
     dens = sorted({r["density"] for r in ts_rows})
+    seeds = sorted({r["seed"] for r in ts_rows})
     fig, axes = plt.subplots(len(dens), 1, figsize=(3.5, 2.1 * len(dens)),
                              sharex=True, squeeze=False)
-    styles = {"psl": dict(color="black", linestyle="-", linewidth=1.4,
-                          label="PSL schedule + stop-and-go"),
-              "none": dict(color="0.45", linestyle="--", linewidth=1.2,
-                           label="uncontrolled")}
+    styles = {"psl": dict(color="black", linestyle="-", linewidth=1.2),
+              "none": dict(color="0.55", linestyle="--", linewidth=1.0)}
     for ax, d in zip(axes[:, 0], dens):
         for control in ("none", "psl"):
-            rows = [r for r in ts_rows
-                    if r["density"] == d and r["control"] == control]
-            rows.sort(key=lambda r: float(r["time_s"]))
-            xs = [float(r["time_s"]) for r in rows]
-            ys = [float(r[metric]) if r[metric] not in ("", None) else float("nan")
-                  for r in rows]
-            if xs:
-                ax.plot(xs, ys, **styles[control])
+            label = ("PSL schedule + stop-and-go" if control == "psl"
+                     else "uncontrolled")
+            for s in seeds:
+                rows = [r for r in ts_rows if r["density"] == d
+                        and r["control"] == control and r["seed"] == s]
+                rows.sort(key=lambda r: float(r["time_s"]))
+                if rows:
+                    ax.plot([float(r["time_s"]) for r in rows],
+                            [float(r[metric]) for r in rows],
+                            label=label if s == seeds[0] else None,
+                            **styles[control])
         ax.set_ylabel(ylabel)
         ax.set_title("density level %d" % d, fontsize=8)
         ax.tick_params(labelsize=7)
         ax.grid(True, alpha=0.3, linewidth=0.5)
     axes[-1, 0].set_xlabel("simulation time (s)")
     axes[0, 0].legend(fontsize=6, frameon=False, loc="upper left")
-    fig.suptitle("%s, cross3 (6 lanes), 1 seed, 1 run per cell"
-                 % title_prefix, fontsize=8)
+    fig.suptitle("%s, cross3 (6 lanes), %d seeds"
+                 % (title_prefix, len(seeds)), fontsize=8)
     fig.tight_layout(rect=(0, 0, 1, 0.97))
     for ext in ("pdf", "png"):
         fig.savefig(out_dir / ("%s.%s" % (fname, ext)), dpi=300,
@@ -112,43 +141,50 @@ def make_figures(ts_rows, out_dir, metric, ylabel, fname, title_prefix):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--psl-dir", default="results/psl_final",
-                    help="contains exec-d{D}/ from execute_plan.py (control=psl)")
-    ap.add_argument("--none-dir", default="results/psl_exec",
-                    help="contains cross3-d{D}-s81890-none/")
+    ap.add_argument("--run-root", default="results/psl_tr",
+                    help="root holding exec-d{D}-s{S}/ none-d{D}-s{S}/ and "
+                         "psl-d{D}-s{S}/")
     ap.add_argument("--densities", default="1,3,5")
+    ap.add_argument("--seeds", default="81890,81891,81892,81893,81894")
+    ap.add_argument("--lanes", type=int, default=3)
     ap.add_argument("--out-dir", default="evaluation/figures/psl_baseline")
+    ap.add_argument("--figures", action="store_true",
+                    help="also render the two temporal figures (needs matplotlib)")
     args = ap.parse_args(argv)
 
-    psl_dir = ROOT / args.psl_dir if not Path(args.psl_dir).is_absolute() \
-        else Path(args.psl_dir)
-    none_dir = ROOT / args.none_dir if not Path(args.none_dir).is_absolute() \
-        else Path(args.none_dir)
-    out = ROOT / args.out_dir if not Path(args.out_dir).is_absolute() \
-        else Path(args.out_dir)
+    base = Path(args.run_root)
+    if not base.is_absolute():
+        base = ROOT / base
+    out = Path(args.out_dir)
+    if not out.is_absolute():
+        out = ROOT / out
     out.mkdir(parents=True, exist_ok=True)
 
-    rows, ts_all = [], []
+    by_seed, ts_all = [], []
     for d in [int(x) for x in args.densities.split(",") if x]:
-        p = psl_dir / ("exec-d%d" % d)
-        if (p / "metrics.json").exists():
-            r, t = load_run(p / "metrics.json", p / "timeseries.csv", d, "psl")
-            rows.append(r)
-            ts_all += t
-        else:
-            print("missing %s" % (p / "metrics.json"))
-        n = none_dir / ("cross3-d%d-s81890-none" % d)
-        if (n / "metrics.json").exists():
-            r, t = load_run(n / "metrics.json", n / "timeseries.csv", d, "none")
-            rows.append(r)
-            ts_all += t
-        else:
-            print("missing %s" % (n / "metrics.json"))
+        for s in [int(x) for x in args.seeds.split(",") if x]:
+            plan = base / ("psl-d%d-s%d" % (d, s)) / "summary.json"
+            for control, folder in (("psl", base / ("exec-d%d-s%d" % (d, s))),
+                                    ("none", base / ("none-d%d-s%d" % (d, s)))):
+                mp = folder / "metrics.json"
+                if not mp.exists():
+                    continue
+                row, ts = load_cell(mp, folder / "timeseries.csv", args.lanes,
+                                    d, control, s,
+                                    plan if control == "psl" else None)
+                by_seed.append(row)
+                ts_all += ts
 
+    summary = summarise(by_seed)
+    with open(out / "psl_traffic_by_seed.csv", "w", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=BY_SEED_FIELDS, extrasaction="ignore")
+        w.writeheader()
+        for r in by_seed:
+            w.writerow(r)
     with open(out / "psl_traffic_summary.csv", "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=SUMMARY_FIELDS, extrasaction="ignore")
         w.writeheader()
-        for r in rows:
+        for r in summary:
             w.writerow(r)
     if ts_all:
         with open(out / "timeseries_all.csv", "w", newline="") as fh:
@@ -156,37 +192,45 @@ def main(argv=None):
             w.writeheader()
             for r in ts_all:
                 w.writerow(r)
+    if args.figures and ts_all:
+        make_figures(ts_all, out, "mean_time_loss_s", "mean time loss (s)",
+                     "fig_timeloss", "Average time loss")
+        make_figures(ts_all, out, "mean_speed_mps", "mean speed (m/s)",
+                     "fig_speed", "Average speed")
 
-    if ts_all:
-        make_figures(ts_all, out, "mean_time_loss_s",
-                     r"mean time loss (s)", "fig_timeloss",
-                     "Average time loss")
-        make_figures(ts_all, out, "mean_speed_mps",
-                     r"mean speed (m/s)", "fig_speed", "Average speed")
+    lines = ["# Plot manifest -- PSL baseline data", "",
+             "| artefact | source | note |", "|---|---|---|",
+             "| `psl_traffic_by_seed.csv` | `%s/*/metrics.json` | one row per "
+             "(density, control, seed); plot from this file |" % args.run_root,
+             "| `psl_traffic_summary.csv` | the same | mean/min/max over seeds |",
+             "| `timeseries_all.csv` | `*/timeseries.csv` | 10 s logging, "
+             "paper section III-B |", ""]
+    if args.figures:
+        lines += ["| `fig_timeloss.pdf/.png` | `timeseries_all.csv` | one line "
+                  "per seed |",
+                  "| `fig_speed.pdf/.png` | `timeseries_all.csv` | one line "
+                  "per seed |", ""]
+    lines += ["Data class: **NEW_BASELINE_RAW** (no historical DSIP data).",
+              "Runs: cross3 only, seeds %s, 1000 s, 0.1 s step, w=13.9."
+              % args.seeds,
+              "Figures are generated only with `--figures` (author instruction:",
+              "prepare the data first).", ""]
+    (out / "plot_manifest.md").write_text("\n".join(lines))
 
-    manifest = ["# Plot manifest -- PSL baseline figures", "",
-                "Provenance for `%s`." % out.name, "",
-                "| artefact | source | note |", "|---|---|---|",
-                "| `psl_traffic_summary.csv` | `%s/exec-d*/metrics.json`, `%s/cross3-d*-none/metrics.json` | 1 run per (density, control) |"
-                % (args.psl_dir, args.none_dir),
-                "| `timeseries_all.csv` | same runs, `timeseries.csv` | 10 s logging, paper section III-B |",
-                "| `fig_timeloss.pdf/.png` | `timeseries_all.csv` | mean over the active fleet |",
-                "| `fig_speed.pdf/.png` | `timeseries_all.csv` | mean instantaneous speed |",
-                "", "Data class: **NEW_BASELINE_RAW** (no historical DSIP data).",
-                "Runs: cross3 only, seed 81890, 1000 s, 0.1 s step, w=13.9.",
-                "No box plot is drawn: one run per cell cannot form a distribution",
-                "(AGENTS.md 6.3).", ""]
-    (out / "plot_manifest.md").write_text("\n".join(manifest))
-
-    print("wrote %d summary rows, %d time-series rows to %s"
-          % (len(rows), len(ts_all), out))
-    for r in rows:
-        print("  d%d %-4s TLseries=%-7s TLveh=%-7s v=%-6s prox=%-4s ebrake=%s"
-              % (r["density"], r["control"], r["time_loss_series_mean_s"],
-                 r["time_loss_per_vehicle_mean_s"], r["speed_series_mean_mps"],
-                 r["proximity_events_lt1p5m"], r["emergency_braking_events"]))
+    print("by-seed rows %d, summary rows %d, time-series rows %d -> %s"
+          % (len(by_seed), len(summary), len(ts_all), out))
+    for r in summary:
+        print("  d%d %-4s n=%d TLser=%.2f [%.2f,%.2f] TLveh=%.2f v=%.2f prox=%.1f"
+              % (r["density"], r["control"], r["n_seeds"],
+                 r["time_loss_series_mean_s_mean"] or 0,
+                 r["time_loss_series_mean_s_min"] or 0,
+                 r["time_loss_series_mean_s_max"] or 0,
+                 r["time_loss_per_vehicle_mean_s_mean"] or 0,
+                 r["speed_series_mean_mps_mean"] or 0,
+                 r["proximity_events_lt1p5m_mean"] or 0))
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

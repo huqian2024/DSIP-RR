@@ -61,16 +61,27 @@
 - 修复方向：明确"窗口内已含间隔"或"判定时加间隔"**只取一处**，
   并在文档里给出公式；修复后必须重跑并如实报告碰撞变化。
 
-### D-03 `too_close` 车辆被记为"已停放"（**严重，稳定性相关**）
+### D-03 `too_close` 车辆被记为"已停放"（**严重，稳定性相关**）—— **已修复 2026-11-14**
 
 - 位置：`control.py:324-328`（`setStop` 前置检查失败 → `too_close`，但仍 `self.stopped.add(vid)`）
 - 后果：`self.stopped` 混淆了"我们发过 setStop"与"成功拦住"；
   之后 `_try_resume` 会对**没有活动 stop 的车辆**调用 `resume()`。
   实测症状就是 `Failed to resume from stopping … reached: 0` 的逐步洪泛（见 §0），
   并伴随 TraCI 连接被重置、SUMO 进程堆损坏退出。
-- 修复方向：拆分 `stopped_ok` / `stop_failed` 两个集合；
-  `resume()` 只对 `stopped_ok` 调用；`stop_failed` 车辆进入显式的 **forced** 分支并计入指标。
-  （这是 Stage 3 的**第一优先修复**，因为它直接导致扫描崩溃。）
+- **修复（已完成）**：
+  1. 拆成 `self.stopped_ok`（`setStop` 被 SUMO 接受）与 `self.stop_failed`（无法拦住，终态）；
+     `_stop_at_line` 只在**成功**时加入 `stopped_ok`，失败则进 `stop_failed` 且不再重试；
+  2. `_try_resume` 首行 `if vid not in self.stopped_ok: return`，
+     **绝不**对未成功拦停的车调用 `resume()`；
+  3. 对"SUMO 仍报 `reached: 0`"（车辆停在距停位几厘米处）的情形做**一次升级释放**
+     （`setStop(..., duration=0)`），并设 `RELEASE_RETRY_LIMIT = 5`；
+     超过上限则放弃并计入 `release_failed`，**单个卡住的车无法再刷爆日志**；
+  4. 指标新增 `n_stopped_ok` / `n_stop_failed` / `n_release_failed` / `n_resume_forced`。
+- **验证**：
+  - 单测（`test_logic.py::test_d03_stop_failure_not_recorded`）8 项断言全通过；
+  - 真实运行 `--end 200 --seed 81890`：`rc=0`、**`Failed to resume` 119 → 18**、
+    无 `malloc`/`Connection reset`、碰撞事件 0、`held ok 104 / stop_failed 3 / release_failed 0`。
+    剩余 18 次是那 18 辆车在升级释放成功之前的**首次**失败，每车一次，有界。
 
 ### D-04 缺少显式预约状态机（**中，可追踪性相关**）
 

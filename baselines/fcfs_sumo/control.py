@@ -53,6 +53,7 @@ EXIT_ROOM = 45.0                # m   free space required at the head of the tar
                                 #     (blocking crossing points) or ends up late
                                 #     for its booked merge; both were observed.
                                 #     Implementation guard, not a research value.
+RELEASE_RETRY_LIMIT = 5   # D-03: attempts before a stuck release is abandoned
 GRANT_TIMEOUT = 5.0             # s   implementation guard: a grant that has not
                                 #     produced a junction entry within this time is
                                 #     revoked, so no vehicle can hold a resource it
@@ -127,12 +128,22 @@ class Controller:
         self.revoked = 0
         self.grant_count = 0       # cumulative grants issued (not the final dict size)
         self.entered = set()       # vids observed inside a junction
-        self.stopped = set()       # vids we issued setStop for
+        # D-03: "we asked SUMO to stop it" and "SUMO accepted the stop" are two
+        # different facts.  Only a vehicle in ``stopped_ok`` may ever be passed
+        # to ``resume()``: calling resume() on a vehicle that has no active stop
+        # makes SUMO answer "Failed to resume ... reached: 0" on EVERY step,
+        # which floods the log, adds one TraCI round trip per vehicle per step
+        # and eventually resets the connection (observed as the heap corruption
+        # that killed the 450-run sweep at 227/450).
+        self.stopped_ok = set()     # setStop accepted -> resume() is legal
+        self.stop_failed = set()    # could not hold it (too close / refused)
         self.pending_resume = set()  # granted but stop not reached yet
         self.reserved = {}         # lane -> vid
         self.touched = set()       # (vid, lane) pairs the vehicle has reached
         self.release = {}          # lane -> earliest re-use time
         self.too_close = 0
+        self.release_failed = 0    # D-03: vehicles we gave up releasing
+        self.resume_fail = {}      # vid -> failed resume attempts
         self.events = []
         self._lane_len = {}
         self._route_idx = {}
@@ -298,6 +309,10 @@ class Controller:
         and adds a TraCI round trip per vehicle per step.  The retry is therefore
         gated on the vehicle having arrived at its stop position.
         """
+        if vid not in self.stopped_ok:
+            # D-03: never resume a vehicle we did not successfully stop.
+            self.pending_resume.discard(vid)
+            return
         edge = self.tc.vehicle.getRoadID(vid)
         lane = self.tc.vehicle.getLaneID(vid)
         lane_len = self._lane_len.setdefault(lane, self.tc.lane.getLength(lane))
@@ -308,32 +323,63 @@ class Controller:
         try:
             self.tc.vehicle.resume(vid)
         except Exception:
-            self.pending_resume.add(vid)
+            # SUMO still reports "reached: 0" (typical when IDM stopped the
+            # vehicle a few centimetres short of the stop position).  Escalate
+            # once to a zero-duration stop, which releases it unconditionally,
+            # and give up after RELEASE_RETRY_LIMIT attempts: a single stuck
+            # vehicle must never be able to flood the log for the rest of the
+            # run (that flood is what killed the 450-run sweep).
+            n = self.resume_fail.get(vid, 0) + 1
+            self.resume_fail[vid] = n
+            if n <= RELEASE_RETRY_LIMIT:
+                try:
+                    self.tc.vehicle.setStop(
+                        vid, edge, pos=stop_pos,
+                        laneIndex=self.tc.vehicle.getLaneIndex(vid), duration=0)
+                    self.pending_resume.discard(vid)
+                    self.events.append(("resume_forced", now, vid))
+                    return
+                except Exception:
+                    self.pending_resume.add(vid)
+                    return
+            self.pending_resume.discard(vid)
+            self.stopped_ok.discard(vid)
+            self.stop_failed.add(vid)
+            self.release_failed += 1
+            self.events.append(("release_failed", now, vid))
             return
         self.pending_resume.discard(vid)
         self.events.append(("resume", now, vid))
 
     def _stop_at_line(self, vid):
-        """Try to hold vid at the stop line.  Returns True if it is now held."""
-        if vid in self.stopped:
+        """Try to hold vid at the stop line.  Returns True if it is now held.
+
+        D-03: a failure must NOT be recorded as "held".  ``stopped_ok`` only ever
+        contains vehicles for which ``setStop`` was accepted, and
+        ``stop_failed`` is a terminal state so that the same vehicle is not
+        retried on every step.
+        """
+        if vid in self.stopped_ok:
             return True
+        if vid in self.stop_failed:
+            return False
         edge = self.tc.vehicle.getRoadID(vid)
         lane_i = self.tc.vehicle.getLaneIndex(vid)
         lane_len = self.tc.lane.getLength("%s_%d" % (edge, lane_i))
         pos = lane_len - STOP_OFFSET
         if self.tc.vehicle.getLanePosition(vid) >= pos - 1.0:
             self.too_close += 1
-            self.stopped.add(vid)
+            self.stop_failed.add(vid)
             self.events.append(("too_close", self.tc.simulation.getTime(), vid))
             return False
         try:
             self.tc.vehicle.setStop(vid, edge, pos=pos, laneIndex=lane_i)
         except Exception:                     # SUMO refuses: "too close to brake"
             self.too_close += 1
-            self.stopped.add(vid)
+            self.stop_failed.add(vid)
             self.events.append(("too_close", self.tc.simulation.getTime(), vid))
             return False
-        self.stopped.add(vid)
+        self.stopped_ok.add(vid)
         self.events.append(("stop", self.tc.simulation.getTime(), vid))
         return True
 
@@ -388,7 +434,7 @@ class Controller:
                 self.granted[vid] = mi
                 self.grant_time[vid] = now
                 self.grant_count += 1
-                if vid in self.stopped:
+                if vid in self.stopped_ok:
                     self._try_resume(vid, now)
             elif not self._stop_at_line(vid):
                 # cannot be held any more -> forced through; record it honestly
@@ -563,7 +609,11 @@ def run(end_time=100.0, seed=81890, control=True, granularity="movement",
         "collisions": collisions,
         "n_requests": len(ctrl.request_time) if ctrl else 0,
         "n_granted": (ctrl.grant_count if ctrl else 0),
-        "n_stopped": len(ctrl.stopped) if ctrl else 0,
+        "n_stopped_ok": len(ctrl.stopped_ok) if ctrl else 0,
+        "n_stop_failed": len(ctrl.stop_failed) if ctrl else 0,
+        "n_release_failed": ctrl.release_failed if ctrl else 0,
+        "n_resume_forced": (sum(1 for e in ctrl.events
+                               if e[0] == "resume_forced") if ctrl else 0),
         "n_too_close": ctrl.too_close if ctrl else 0,
         "n_forced": (sum(1 for e in ctrl.events if e[0] == "forced") if ctrl else 0),
         "n_revoked": (ctrl.revoked if ctrl else 0),
@@ -589,7 +639,9 @@ def run(end_time=100.0, seed=81890, control=True, granularity="movement",
             % (c["time"], c["lane"], c["victim"], c["other"]))
     if ctrl:
         say("requests / granted    : %d / %d" % (out["n_requests"], out["n_granted"]))
-        say("vehicles held at line :", out["n_stopped"])
+        say("vehicles held at line :", out["n_stopped_ok"],
+        " (could not hold: %d, gave up releasing: %d)"
+        % (out["n_stop_failed"], out["n_release_failed"]))
         say("too-close / forced    : %d / %d" % (out["n_too_close"], out["n_forced"]))
         say("grants revoked        :", out["n_revoked"])
     say("artefacts             :", json_path.name, "/", csv_path.name)
