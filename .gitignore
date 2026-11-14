@@ -92,6 +92,12 @@ results/**/*.parquet
 results/**/*.log
 !results/.gitkeep
 
+# PSL 求解器的原始产物：文件名无扩展名或为二进制，同样可由脚本再生。
+# 尤其 AIMPBS 是上游 41.7 MB 预编译二进制，**不得**入库（无再分发许可）。
+results/**/AIMPBS
+results/**/model.lp
+results/**/solution
+
 # ---------- 上游第三方代码 ----------
 # 上游仓库以"URL + 固定 commit"记录在文档中；源码目录不直接入库
 # （避免嵌套 .git 与仓库体积膨胀）。若确需入库，改用 submodule。

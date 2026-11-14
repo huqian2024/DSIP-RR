@@ -80,24 +80,79 @@ Rules that remain in force:
 
 ### Agreed supplementary work
 
-Baseline structure (decision of 2026-11-07; see `docs/baselines/baseline-strategy.md`):
+**Priority reset (author instruction, 2026-11-14).** The binding priority is now:
 
-| Runtime | Method | Role | Status entering this round |
+| Priority | Work | Status |
+|---|---|---|
+| **P0** | **PSL baseline**: compile/run/SUMO adaptation, pilot results | **active** |
+| P1 | Minimal-necessary manuscript revision (contribution boundary vs MMD; PSL figure/table slots) | active, change list only |
+| **P2** | **DSIP full reconstruction** | **PAUSED** (see §"DSIP reconstruction scope") |
+| P3 | PSB, FCFS large sweep, CCAM-DI, other baselines | **DEFERRED** |
+
+Rationale: both R1 and R2 make the missing credible, reproducible AIM comparison the
+central weakness, so a working optimisation-baseline pipeline outranks the DSIP
+reconstruction this round. Details: `docs/HANDOFF.md` §15.
+
+Baseline structure (decision of 2026-11-07; status column updated 2026-11-14):
+
+| Runtime | Method | Role | Status |
 |---|---|---|---|
-| L1 | **DSIP** | This study's method | historical results only; source/weights missing |
-| L2 | **FCFS** conflict-point reservation (Dresner–Stone inspired, **not** an AIM4 tile reproduction) | traditional reservation AIM | implemented, **12 audited defects**, sweep interrupted |
-| L3 | **PSL** (Priority-Based Search + SIPP + LP) | core optimization baseline | cloned; **cannot compile (no CPLEX)**; prebuilt binary to be tested |
-| L4 | **PSB** (Priority-Based Search + SIPP + Bézier kinodynamic optimisation) | core optimization baseline | cloned; **cannot compile, no prebuilt binary (no CPLEX)** |
+| L1 | **DSIP** | This study's method | historical results only; **reconstruction PAUSED** |
+| L2 | **FCFS** conflict-point reservation (Dresner–Stone inspired, **not** an AIM4 tile reproduction) | traditional reservation AIM | implemented, **12 audited defects**; large sweep **DEFERRED** |
+| L3 | **PSL** (Priority-Based Search + SIPP + LP) | core optimization baseline | **P0: prebuilt binary runs, CPLEX `optimal`, end-to-end on cross2/3/4 nets; closed-loop execution not yet done** |
+| L4 | **PSB** (Priority-Based Search + SIPP + Bézier kinodynamic optimisation) | core optimization baseline | **DEFERRED**; cannot compile and no prebuilt binary (no CPLEX) |
 | Reference | **Fixed-time signal control** (`tls2/3/4.net.xml`) | traditional control | assets available; not yet run |
-| Optional | **CCAM-DI** (RL) | optional RL baseline | **not implemented this round** |
+| Optional | **CCAM-DI** (RL) | optional RL baseline | **not implemented**; **DEFERRED** |
 
 - **FCFS** is retained and must be *corrected*, not replaced; its conservative parameters are documented in `docs/decisions/fcfs-parameters.md`.
-- **PSL and PSB** are the highest-priority new work. Reproduce them **as published first** (upstream, unmodified), then adapt to SUMO in our own directory.
-- **CCAM-DI** is explicitly deprioritised this round; do not sneak it in.
+- **PSL is the only baseline in active development.** Do not widen to PSB or launch the FCFS/PSL sweeps while PSL still lacks a closed-loop execution layer.
+- **CCAM-DI** is explicitly deprioritised; do not sneak it in.
+- **DSIP reconstruction is PAUSED**; resuming requires a new explicit author instruction *and* PSL having passed its pilot (see §"DSIP reconstruction scope").
 - **Literature:** add and discuss Klimke et al., *“A Real-World Evaluation of Two Cooperative Intersection Management Approaches,”* DOI **10.1109/MITS.2025.3643199**. No official drop-in reproduction code has yet been established; do not assert definitively that no code exists. Do not claim DSIP empirically outperforms that method without matched experiments.
-- **Traffic-turning-demand sensitivity:** supplementary DSIP tests with varying left/straight/right movement ratios, **only after reconstruction has been validated**.
+- **Traffic-turning-demand sensitivity:** supplementary DSIP tests with varying left/straight/right movement ratios are **recorded as an open R1 item only**. First check whether it can be produced by editing SUMO route/flow files without reviving the DSIP model; if it requires the reconstruction, record the dependency and do not resume the reconstruction.
 - **Small optional/targeted studies:** CBS planning-time distribution/timeouts, modest communication latency/jitter, and trajectory feasibility checks when the recovered system supports valid tests.
 - **Out of scope unless explicitly authorized:** new diffusion architecture, changed CBS search, new traffic-planning mechanism, full-scale mixed-traffic deployment, broad ablation matrices.
+
+### PSL Stage 0–5 (added 2026-11-14, binding; completion criteria)
+
+This replaces the *PSL rows* of the 2026-11-07 gate table. It does not loosen any other gate.
+Evidence for each stage goes to `docs/baselines/psl-stage1-runlog.md`.
+
+| Stage | Content | Done when |
+|---|---|---|
+| 0 | local state audit | PSL repo/commit recorded, environment + CPLEX status recorded, no pristine checkout modified |
+| 1 | minimal upstream run | upstream sample runs, exit code / CPLEX status / outputs recorded, determinism checked |
+| 2 | environment and code fixes | every deviation from upstream listed with a reason; **no LP/SIPP/PBS algorithm change**; no licence circumvention |
+| 3 | SUMO integration | instance generated **from the SUMO net** (not renamed upstream vertices), end-to-end plan produced for one scenario, plan independently validated |
+| 4 | small-scale experiment | fixed seeds, several repeats, metrics plausible, explicit alignment (not mixing) with historical DSIP figures |
+| 5 | evaluation / sweep proposal | a written proposal for the formal matrix — **no sweep runs before author confirmation** |
+
+Current position: **Stages 0–3 done (planning side); Stage 4 attempted, NOT passed.**
+Stage 3 must **not** be called "closed-loop": the plan is not yet fed back into SUMO.
+
+Additional binding notes (2026-11-14 evening):
+
+- The **per-approach entry collapse** inherited from upstream caps one approach at
+  `1/(Li/w + Li/v) ≈ 0.60 veh/s`, which is **below Table I MinD (0.80 veh/s)**.
+  `net_to_graph.py --trim-ends` therefore keeps only real crossing points; movements with
+  **no** crossing point (right turns) are excluded from the solver and must be reported as
+  uncoordinated, never as PSL-planned.
+- Stage 4 result (C-option, recorded): MinD horizon completion **73.7-78.8 %** over three seeds
+  (mean 76.2 %), mean entry delay 105-127 s, sustained rate ~1.53 veh/s against 2.03 veh/s required;
+  six runs validated, ~4.3 M conflict-vertex pairs, **0 violations**.
+- Completion is **independent of lane count** (70.1 / 76.2 / 70.7 % on 2/3/4 lanes) while demand
+  scales with lanes, because one median-lane path is modelled per movement.
+- The ceiling is the **upstream conflict model, not PSL**: a solver-free greedy packer reaches
+  only 1.46 veh/s, larger windows and per-lane paths do not help, and no conflict group exceeds
+  55 % utilisation. Occupancy is `Li/w + Li/v` with `w = 7` hard-coded in the binary.
+- Reportable: completion fraction / entry delay / effective rate **with** those controls.
+  Not reportable: throughput, travel time, collisions; and any direct "PSL is worse than DSIP"
+  claim (different conflict models, no matched rerun).
+- **Zone-level conflict abstraction is NOT an option on its own**: upstream `Li` depends only on
+  vehicle length and turn radius, never on the vertex's geometric scale, so pricing a 27 m zone
+  with it under-charges by ~2.1x. That is a safety error, needs `SIPP.cpp` changes and therefore
+  the same CPLEX blocker as changing `w`. Prefer changing `w` (7 -> ~11 m/s) and disclosing it.
+- Report: `docs/baselines/psl-experiment-adaptation.md`.
 
 ### Staged experiment gates (added 2026-11-07, binding)
 
@@ -117,7 +172,7 @@ Hard prohibitions in this round:
 
 - **Do not** launch the 450-run FCFS sweep (30 seeds × 5 densities × 3 lanes) without a new explicit instruction.
 - **Do not** run `third_party/_local/AIM-PSL/Controller/controller.py` — it performs ~100 simulations × 6 fleet sizes × 3 methods.
-- **Do not** run PSB/PSL parameter matrices before Stage 2 passes.
+- **Do not** run PSB/PSL parameter matrices before Stage 2 passes. *(PSL Stage 2 has passed as of 2026-11-14; PSB is DEFERRED. This does not authorise any sweep — the PSL Stage 0–5 table above governs.)*
 - **Do not** loosen collision checks, safety gaps, or vehicle kinematics to obtain better numbers.
 - **Known hard blocker:** IBM ILOG CPLEX is **not installed** on this machine and both upstreams hard-code its path; PSB cannot be compiled at all and PSL cannot be recompiled. See `third_party/UPSTREAMS.md` §3. Do not silently swap in another solver.
 
@@ -325,6 +380,17 @@ Use line plots only when showing temporal behavior is necessary.
 8. **Prioritized experiments:** (a) FCFS + CCAM-DI baselines, (b) turning-ratio sensitivity using validated reconstructed DSIP, (c) compact CBS latency/timeout statistics, (d) optional limited V2X delay/jitter analysis if technically meaningful. No ablations unless newly authorized.
 
 ### DSIP reconstruction scope (added 2026-11-07, binding)
+
+> **STATUS: PAUSED as of 2026-11-14 (author instruction).**
+> Do **not** download/re-download DSIP or MMD checkpoints, rebuild the diffusion
+> inference environment, restore model weights, rewrite DSIP inference code, or
+> start any part of a DSIP reconstruction.
+> **Resume only if** (a) the author gives a new explicit instruction, **and**
+> (b) PSL has passed its Stage 4 pilot.
+> **Turning-ratio sensitivity (R1):** recorded as an open item. First check whether it
+> can be answered by editing SUMO route/flow files without reviving the model. If it
+> needs the reconstruction, record that dependency — do not resume.
+> The rules below remain the binding contract **for whenever it is resumed**.
 
 Author decision: reconstruct the lost DSIP implementation so the revision has matched DSIP runs again. Rules:
 

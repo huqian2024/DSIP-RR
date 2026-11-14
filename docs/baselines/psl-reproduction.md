@@ -1,11 +1,22 @@
 # PSL 复现记录（PBS + SIPP + LP）
 
-- 文档状态：**Stage 1 完成（克隆 + 许可证/依赖审计 + 编译尝试）**；Stage 2（单样例）**未开始**
+- 文档状态：**Stage 0–3 完成（规划侧）**，2026-11-14 更新
+- **P0 最高优先级任务**（见 `docs/HANDOFF.md` §15）
+- 运行证据（命令、退出码、哈希、指标）：**`docs/baselines/psl-stage1-runlog.md`**
 - 上游登记：见 `third_party/UPSTREAMS.md` §2
 - 上游 commit：`5686e15092fd95a46309a118655a5ab0c23c60fa`（分支 **`AAAI22_PBS-SIPP`**，2022-08-18）
 - 本地路径：`third_party/_local/AIM-PSL/`（未入库、未修改、pristine）
+- 适配代码：`baselines/psl_sumo/`（新增，入库）
 
-> 分级同 `psb-reproduction.md`：**【已验证】** / **【当前实现】** / **【计划】** / **【未解决】**。
+> **2026-11-14 状态变化（重要）**
+> 1. **预编译 `AIMPBS` 已实测可运行**：exit 0、CPLEX `optimal`、无许可报错、确定性可复现。
+>    ⇒ "缺 CPLEX" **不再是 PSL 的运行阻塞**，只阻塞"重新编译"（以及 PSB）。
+> 2. **已在本项目 SUMO 路网（cross2/3/4）上端到端跑通**，15 车与 25 车两种规模，
+>    并通过独立冲突可行性校验（64 / 175 对冲突顶点，**0 违规**）。
+> 3. **但仍不是闭环交通仿真**：没有把计划回灌 SUMO，因此**不能**报告吞吐/行程时间/碰撞数。
+> 4. 已知偏离：上游硬编码 `v_max=15 m/s`，高于 `types.typ.xml` 的 13.9。
+
+> 分级：**【已验证】** / **【当前实现】** / **【计划】** / **【未解决】**。
 
 ---
 
@@ -24,61 +35,65 @@
 | 9 | 输入/输出格式确认 | 输入 JSON 与 PSB **同构**；输出 `output.txt` 每车一行 schedule（无 Bézier 列） |
 | 10 | 预编译二进制确认 | `PBS-SIPP-ver2/AIMPBS`（41.7 MB）为静态链接，`ldd` **无** cplex 动态依赖 |
 
-**没有做的事（不得声称完成）**：未编译出可执行文件、未运行任何样例（**包括未运行那个预编译 `AIMPBS`**）、
-未产生本轮实验数据。
+**2026-11-07 时未做的事（当时）**：未编译出可执行文件、未运行任何样例、未产生实验数据。
+**2026-11-14 已全部补齐**，见 §2–§3。
 
-## 2. 【未解决】两个阻塞
+## 2. 【已验证】原两个阻塞的现状（2026-11-14）
 
-### 2.1 重新编译：缺 CPLEX（确定）
+### 2.1 重新编译：仍然缺 CPLEX（阻塞未解除）
 
 与 PSB 同源：LP 求解在 `SIPP.cpp:205-223`，无 CPLEX 无法编译。
-选项 A/B/C 见 `third_party/UPSTREAMS.md` §3，**需作者决定**。
+选项 A/B/C 见 `third_party/UPSTREAMS.md` §3，**仍需作者决定**。
+**但本轮不再被它阻塞**，因为预编译二进制可用。
 
-### 2.2 运行：预编译 `AIMPBS` 是否可用（**待 Stage 2 验证**）
+### 2.2 运行：预编译 `AIMPBS` **实测可用**（原风险已排除）
 
-- 有利证据：ELF 静态链接，`ldd` 无 `libcplex.so` 依赖，说明 `libcplex.a` 已链入。
-- 风险：CPLEX **静态库在运行期仍可能校验许可**（尤其超过 Community Edition 规模时）；
-  其 12.10 版本的运行时行为无法从源码判断。
-- 因此：允许在 Stage 2 **单次、小规模**试跑以判定可用性；
-  **不得**据此声称"PSL 已复现"，也不得用它跑批量实验。
+| 检查 | 结果 |
+|---|---|
+| 上游样例 `./AIMPBS 4`（5 车） | **exit 0**，stderr 0 字节，`solutionStatusString="optimal"` |
+| CPLEX 许可报错 | **无**（CPLEX 静态链入，运行期校验通过） |
+| 连续 3 次同输入 | `output.txt` / `model.lp` sha256 **完全一致**（确定性） |
+| 5/10/15/20/25 车 | 全部 `optimal`，自报 0.011 / 0.020 / 0.040 / 0.041 / 0.053 s |
+| 本项目 SUMO 图（cross3）15 / 25 车 | exit 0，`optimal`，0.067 / 0.208 s |
 
-## 3. 【计划】Stage 2 的单样例复现方案（待批准，勿执行）
+⇒ **可以说"PSL 的求解器在本机跑通了"**，但**不能说"PSL 基线已复现"**，
+因为还缺闭环执行（§4）与多 seed/多密度（§5）。
 
-上游 `Driver.cpp` 的调用约定（已验证）：
+## 3. 【已验证】Stage 1/2 的上游自检（已执行）
+
+上游 `Driver.cpp` 的调用约定：
 
 ```cpp
-int step = atoi(argv[1]);              // 车辆数（agent 数），不是 -k 参数
-Instance instance("intro_graph_3.json");   // 硬编码
-instance.loadVehicles("vehicleArrival.json", step);  // 硬编码
-pbs.run("output.txt");                 // 硬编码
+int step = atoi(argv[1]);                    // 索引，不是车辆数
+Instance instance("intro_graph_3.json");     // 硬编码
+instance.loadVehicles("vehicleArrival.json", step);  // i <= step
+pbs.run("output.txt");                       // 硬编码
 ```
 
-⇒ 必须在 `PBS-SIPP-ver2/` 目录内运行，且**只给一个位置参数**：
+⇒ 只给一个位置参数，且必须在**含这几个文件名的目录**里运行：
 
 ```bash
-cd third_party/_local/AIM-PSL/PBS-SIPP-ver2
-./AIMPBS 4          # 参数是"档位值 step"，loadVehicles 用 i<=step，故实际载入 5 辆车
+cd third_party/_local/_scratch/psl-stage1    # 独立副本，不动上游 checkout
+./AIMPBS 4                                   # step=4 ⇒ 载入 5 辆车
 ```
 
-（若改用重新编译的版本，则用 `third_party/_local/_build/psl-pbs/AIMPBS 4`。）
+**未执行且仍然禁止**：`python Controller/controller.py`（~100 次 × 6 档 × 3 方法）、
+`PBS-SIPP-ver2-BFS` 与 `MILP-FCFS` 的批量跑。
 
-需要记录：`argv`、wall time（stdout 打印秒数）、`output.txt` 行数与内容、
-`model.lp`/`solution` 是否生成、是否出现 CPLEX 许可报错、退出码。
+## 4. 【部分解决】SUMO 适配的接口缺口
 
-**禁止**：`python Controller/controller.py`（100 次）、`PBS-SIPP-ver2-BFS` 与 `MILP-FCFS` 的批量跑。
-
-## 4. 【未解决】SUMO 适配的接口缺口
-
-| 缺口 | 说明 |
+| 缺口 | 2026-11-14 状态 |
 |---|---|
-| 图模型与 SUMO 路网不同 | 上游用**顶点=冲突点**的自定义图（`WSR_0…` 命名，`vertex_conflicts` 显式列出），SUMO net 用 lane/connection；映射需显式构造，不能按名字猜 |
-| 无逐时刻轨迹 | `output.txt` 只有进入/离开时刻、平均速度；`ReservationTable.txt` 为二进制 |
-| 批处理 vs 在线 | 上游对给定车辆集合一次性规划；DSIP/FCFS 每 0.1 s 决策 |
-| 车道语义 | `vehicleArrival.json` 的 `lane` 字段是 0–3 的入口车道编号，与 SUMO `laneIndex` 的对应关系**未验证** |
+| 图模型与 SUMO 路网不同 | **已实现**：`baselines/psl_sumo/net_to_graph.py` 从 `*.net.xml` 程序化生成，不按名字猜 |
+| 无逐时刻轨迹 | **仍未解决**：`output.txt` 只有进入/离开时刻 + 平均速度；无法据此重建 SUMO 速度曲线，只能靠 E1 执行层逼近 |
+| 批处理 vs 在线 | **仍未解决**：上游一次性求解；需滚动窗口封装才能与 DSIP 公平比较 |
+| 车道语义 | **已澄清**：`lane` 字段**二进制根本不读**（`Instance.cpp:44-95` 只读 `id`/`importance`/`arrivalTime`/`trajectory`）；因此车道对应问题不影响求解，但影响"实例是否忠实于 SUMO 车道"这一建模判断 |
+| **入口顶点必须有冲突（新发现）** | **已解决**：`PBS.cpp:268` 对空冲突列表取 `[0]` 会段错误；`net_to_graph.py` 按上游语义折叠入口/出口点 |
 
 ## 5. 下一步（最小动作）
 
-1. 作者决定 CPLEX 方案；
-2. Stage 2：单次 `./AIMPBS 4`，判定预编译二进制可用性 + 记录输出；
-3. 用 `output.txt` 评估"能否构造 SUMO 可执行速度曲线"，
-   并据此在 `sumo-adaptation-design.md` 中定死映射规则（**不得凭文件名猜**）。
+1. **E1 执行层**：把 `In Time` 变成 SUMO 的 `setStop`/`resume`，并记录
+   "计划进入时刻 vs 实际进入时刻"的偏差分布；若偏差过大则退回纯规划侧对比。
+2. **滚动窗口批规划**（每 0.4 s 用当前在途车辆重解）。
+3. 通过后再谈 1 lane × 1 density × 3–5 seeds。
+4. CPLEX 安装（可选，只为"能从源码复现"这一点；不装也能继续）。
