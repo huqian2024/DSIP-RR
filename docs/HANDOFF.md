@@ -1467,3 +1467,10 @@ MMD 在 `5c2597eb…`、conda `mmd` 环境（torch 2.0.0+cu118、CUDA True、RTX
 
 **L1 四门全绿** → DSIP 重建 S0 已解锁（S0 不跑仿真：清理 mmd 的 `__pycache__`、
 复核 checkpoint SHA256 / MMD commit / conda `mmd` 环境）。每个 S 阶段仍须停。
+
+**S0 已完成（2026-11-15，不跑仿真）**：上游 MMD `5c2597eb3e2def9f0a87d7972811d340343c0738`
+已恢复 pristine（清理 18 个 untracked `__pycache__`，清理后 0 条）；
+`EnvEmptyNoWait2D-RobotPlanarDisk` 的 `args.yaml` / `ema_model_current_state_dict.pth` /
+`ema_model_current.pth` 三个 SHA256 与 `checkpoint_manifest.md` §4 完全一致；
+conda `mmd` 环境 = Python 3.8.20 + torch 2.0.0+cu118 + CUDA True + RTX 4060 8 GB。
+报告：`docs/dsip_reconstruction/stage0-report.md`。**S1 待作者确认。**
