@@ -1418,3 +1418,26 @@ seed 81891/81892/81893 均为 **0** ⇒ 孤立事件、非系统性。
 由 `evaluation/psl_baseline_report.py` 汇总为
 `evaluation/figures/psl_baseline/{psl_traffic_by_seed,psl_traffic_summary,timeseries_all}.csv`。
 **按要求暂不出图**；脚本保留 `--figures` 开关，需要时一条命令即可生成。
+
+### 15.12 闸门复核（2026-11-15，收到"启动 DSIP"指令后的第一件事）
+
+作者 2026-11-15 指令「启动 DSIP 的还原，首先把闸门的要求理一遍」。
+**只做复核，未启动任何阶段**：没有下载权重、没有跑推理、没有改上游、`src/dsip_reconstruction/` 仍为空。
+
+适用闸门有**三层**：L1 启动闸门 G1–G4、L2 资产/不可协商边界、L3 阶段闸门 S0–S8。
+
+**L1 复核结果**：
+
+| 闸门 | 结论 |
+|---|---|
+| G1 论文口径可报告数字 | **取决于 G2**：计划侧 PASS（450/450 run、0 违规）；交通侧 FAIL（仅 cross3×3 密度×5 seeds） |
+| **G2 对比口径定案** | ❌ **FAIL —— 唯一阻塞项**；`fairness-protocol.md` 尚无这条决定 |
+| G3 FCFS D-03 已修 + 单测 | ✅ PASS（并已连带修 D-01/D-02，14 项断言全通过） |
+| G4 作者"开始"指令 | ✅ PASS（2026-11-15） |
+
+**L2 资产复核**：固定 prior 权重在位（`EnvEmptyNoWait2D-RobotPlanarDisk`，SHA256 已记）、
+MMD 在 `5c2597eb…`、conda `mmd` 环境（torch 2.0.0+cu118、CUDA True、RTX 4060 8 GB）。
+唯一偏离：`third_party/_local/mmd/` 下有 untracked `__pycache__/`，需在 S0 清理。
+
+⇒ **一句话裁决 G2 后即可执行 S0**（S0 不跑仿真，只复核与清理）。
+详见 `docs/dsip_reconstruction/gate-review-2026-11-15.md`。

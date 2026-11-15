@@ -403,8 +403,11 @@ Use line plots only when showing temporal behavior is necessary.
 
 ### DSIP reconstruction scope (added 2026-11-07, binding)
 
-> **STATUS: PLANNED / NOT STARTED (author instruction, 2026-11-14 evening).**
-> The author has scheduled the reconstruction and asked for a written plan first.
+> **STATUS: START INSTRUCTION RECEIVED 2026-11-15; STILL NOT STARTED.**
+> The author issued the "start the reconstruction" instruction on 2026-11-15 and asked for a
+> gate review first. The review (`docs/dsip_reconstruction/gate-review-2026-11-15.md`) shows
+> **G4 met, G3 met, G1 met only if the comparison basis is the planning side, and G2 still open**.
+> **Do not start any stage until G2 is decided** (see gate-review §5 D-A).
 > Do **not** download/re-download DSIP or MMD checkpoints, rebuild the diffusion
 > inference environment, restore model weights, rewrite DSIP inference code, or
 > start any stage of the DSIP reconstruction yet.
