@@ -1498,3 +1498,10 @@ conda `mmd` 环境 = Python 3.8.20 + torch 2.0.0+cu118 + CUDA True + RTX 4060 8 
 产物：`docs/dsip_reconstruction/s1-s3-runlog.md`、`evaluation/figures/dsip_recon/compare.csv`；
 `results/dsip_{s1,s2,s2_8,s3*,compare}/` 全部 git-ignored 可重算。
 `src/dsip_reconstruction/` 下 8 个脚本，S4–S8 未做（阶段闸门）。
+
+**S4 完成（同日晚）**：`src/dsip_reconstruction/dynamics_aware.py` 做事后校验（协调器未改）：
+5.0×1.8 m 有向矩形分离轴检测 + 指令加速度/jerk（计划原生栅格差分，弧长 9 点平滑）。
+三条转向比一致：矩形重叠车辆对 **87 / 103 / 91**（0.31 % / 0.36 % / 0.27 %），
+指令 \|a\| p50 **8.9–9.6 m/s²**（车限 2.6，约 3.5×），jerk 上百。
+⇒ 圆盘无碰 ≠ 矩形无碰；`paper_faithful` 的执行**不可行**，近距/加速度指标不可入论文。
+产物：`evaluation/figures/dsip_recon/{compare.csv,*-s4.json}`。S5–S8 未做。

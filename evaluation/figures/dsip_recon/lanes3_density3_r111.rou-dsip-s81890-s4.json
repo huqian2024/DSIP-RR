@@ -1,0 +1,196 @@
+{
+  "stage": "S4",
+  "mode": "dynamics_aware (post-hoc validation; coordinator unchanged)",
+  "run": "results/dsip_compare/lanes3_density3_r111.rou-dsip-s81890",
+  "n_plans": 239,
+  "n_pairs_checked": 28441,
+  "n_pairs_with_rectangle_overlap": 103,
+  "fraction_pairs_with_overlap": 0.0036,
+  "rect_overlap_steps_total": 933,
+  "vehicle_geometry_m": {
+    "length": 5.0,
+    "width": 1.8
+  },
+  "kinematics_smoothing": "centred 9-sample moving average of arc length (0.70 s) before finite differences",
+  "kinematics": {
+    "v_max": {
+      "p50": 10.659,
+      "p95": 14.807,
+      "max": 15.201
+    },
+    "a_abs_p50": {
+      "p50": 1.5,
+      "p95": 2.89,
+      "max": 3.772
+    },
+    "a_abs_p95": {
+      "p50": 6.794,
+      "p95": 11.939,
+      "max": 12.848
+    },
+    "a_abs_max": {
+      "p50": 9.597,
+      "p95": 14.963,
+      "max": 19.022
+    },
+    "j_abs_p50": {
+      "p50": 19.547,
+      "p95": 44.944,
+      "max": 68.121
+    },
+    "j_abs_p95": {
+      "p50": 77.496,
+      "p95": 148.071,
+      "max": 177.73
+    },
+    "j_abs_max": {
+      "p50": 141.997,
+      "p95": 221.491,
+      "max": 279.648
+    }
+  },
+  "planner_declared_mode": "paper_faithful",
+  "sumo_proximity_events_lt1p5m": 471,
+  "overlaps_head": [
+    {
+      "a": "flow_nw.0",
+      "b": "flow_sw.0",
+      "n_steps": 11,
+      "first_abs_t": 2.9,
+      "duration_s": 1.1
+    },
+    {
+      "a": "flow_ns.1",
+      "b": "flow_sw.0",
+      "n_steps": 3,
+      "first_abs_t": 5.7,
+      "duration_s": 0.3
+    },
+    {
+      "a": "flow_ns.0",
+      "b": "flow_es.0",
+      "n_steps": 15,
+      "first_abs_t": 11.0,
+      "duration_s": 1.5
+    },
+    {
+      "a": "flow_es.0",
+      "b": "flow_ne.1",
+      "n_steps": 1,
+      "first_abs_t": 13.8,
+      "duration_s": 0.1
+    },
+    {
+      "a": "flow_se.1",
+      "b": "flow_ne.3",
+      "n_steps": 3,
+      "first_abs_t": 16.1,
+      "duration_s": 0.3
+    },
+    {
+      "a": "flow_ew.4",
+      "b": "flow_ne.3",
+      "n_steps": 5,
+      "first_abs_t": 18.1,
+      "duration_s": 0.5
+    },
+    {
+      "a": "flow_ns.3",
+      "b": "flow_es.4",
+      "n_steps": 11,
+      "first_abs_t": 19.0,
+      "duration_s": 1.1
+    },
+    {
+      "a": "flow_en.5",
+      "b": "flow_es.4",
+      "n_steps": 6,
+      "first_abs_t": 20.6,
+      "duration_s": 0.6
+    },
+    {
+      "a": "flow_en.6",
+      "b": "flow_es.5",
+      "n_steps": 5,
+      "first_abs_t": 22.1,
+      "duration_s": 0.5
+    },
+    {
+      "a": "flow_es.5",
+      "b": "flow_ne.5",
+      "n_steps": 3,
+      "first_abs_t": 22.9,
+      "duration_s": 0.3
+    },
+    {
+      "a": "flow_nw.5",
+      "b": "flow_ew.3",
+      "n_steps": 5,
+      "first_abs_t": 23.2,
+      "duration_s": 0.5
+    },
+    {
+      "a": "flow_ew.3",
+      "b": "flow_ne.5",
+      "n_steps": 4,
+      "first_abs_t": 25.9,
+      "duration_s": 0.4
+    },
+    {
+      "a": "flow_ns.4",
+      "b": "flow_ns.5",
+      "n_steps": 18,
+      "first_abs_t": 24.1,
+      "duration_s": 1.8
+    },
+    {
+      "a": "flow_en.3",
+      "b": "flow_en.4",
+      "n_steps": 2,
+      "first_abs_t": 26.1,
+      "duration_s": 0.2
+    },
+    {
+      "a": "flow_ns.8",
+      "b": "flow_ns.9",
+      "n_steps": 11,
+      "first_abs_t": 28.1,
+      "duration_s": 1.1
+    },
+    {
+      "a": "flow_se.4",
+      "b": "flow_ne.7",
+      "n_steps": 12,
+      "first_abs_t": 31.1,
+      "duration_s": 1.2
+    },
+    {
+      "a": "flow_en.9",
+      "b": "flow_en.8",
+      "n_steps": 10,
+      "first_abs_t": 32.1,
+      "duration_s": 1.0
+    },
+    {
+      "a": "flow_en.8",
+      "b": "flow_es.7",
+      "n_steps": 14,
+      "first_abs_t": 34.1,
+      "duration_s": 1.4
+    },
+    {
+      "a": "flow_ew.7",
+      "b": "flow_ne.6",
+      "n_steps": 4,
+      "first_abs_t": 37.9,
+      "duration_s": 0.4
+    },
+    {
+      "a": "flow_ns.11",
+      "b": "flow_ew.10",
+      "n_steps": 2,
+      "first_abs_t": 36.6,
+      "duration_s": 0.2
+    }
+  ]
+}

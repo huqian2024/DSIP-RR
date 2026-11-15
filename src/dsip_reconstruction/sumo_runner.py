@@ -187,6 +187,7 @@ class DSIPRunner:
         self.records = []        # one row per CBS call
         self.fallbacks = []
         self.n_planned_vehicles = 0
+        self.plan_log = []          # committed plans, for S4 validation
 
     # -- setup ---------------------------------------------------------------
     def build_frame(self, tc, junction_id):
@@ -421,10 +422,17 @@ def run(args):
                     runner.records.append(rec)
                     if paths is not None:
                         for (veh, pts, rem), path in zip(kept, paths):
+                            curve = progress_curve(path)
                             runner.plans[veh] = {
-                                "s": progress_curve(path), "t0": now,
+                                "s": curve, "t0": now,
                                 "pts": pts, "cum": cumulative(pts), "L": rem}
                             runner.n_planned_vehicles += 1
+                            runner.plan_log.append({
+                                "veh": veh, "t0": now, "L": rem,
+                                "s": [round(v, 6) for v in curve],
+                                "pts": [[round(x, 3), round(y, 3)] for x, y in pts],
+                                "route": list(traci.vehicle.getRoute(veh)),
+                            })
                     else:
                         for veh, _pts, _rem in kept:
                             runner.release(traci, veh, "no_solution")
@@ -464,6 +472,7 @@ def run(args):
     record.update(traffic_metrics(out))
     (out / "s3_report.json").write_text(json.dumps(record, indent=2))
     (out / "s3_calls.json").write_text(json.dumps(runner.records, indent=1))
+    (out / "s3_plans.json").write_text(json.dumps(runner.plan_log))
     (out / "s3_fallbacks.json").write_text(json.dumps(runner.fallbacks, indent=1))
     return record
 

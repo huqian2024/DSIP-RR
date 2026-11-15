@@ -1,7 +1,7 @@
 scenario,arm,seed,end_s,n_trips,n_inserted,time_loss_per_vehicle_mean_s,duration_mean_s,speed_from_route_mean_mps,proximity_events_lt1p5m,emergency_braking_events,n_calls,n_solved,n_over_budget,n_planned_vehicles,n_released_vehicles,wall_p50_s,wall_max_s,total_planning_wall_s
 lanes3_density3.rou,none,81890,200.0,498,0,9.303,22.513,7.794,13,34,,,,,,,,
-lanes3_density3.rou,dsip,81890,200.0,478,0,18.673,32.027,7.311,449,3212,100,92,92,237,24,1.8228,3.8533,185.65
+lanes3_density3.rou,dsip,81890,200.0,478,0,18.673,32.027,7.311,449,3212,100,92,92,237,24,1.8112,3.7991,189.8
 lanes3_density3_r111.rou,none,81890,200.0,499,0,10.13,23.557,7.527,12,30,,,,,,,,
-lanes3_density3_r111.rou,dsip,81890,200.0,476,0,20.117,33.419,7.388,471,3182,100,86,86,239,43,2.1636,3.6421,191.92
+lanes3_density3_r111.rou,dsip,81890,200.0,476,0,20.117,33.419,7.388,471,3182,100,86,86,239,43,2.1315,3.7944,194.0
 lanes3_density3_r122.rou,none,81890,200.0,427,0,8.959,22.408,7.919,17,33,,,,,,,,
-lanes3_density3_r122.rou,dsip,81890,200.0,450,0,15.74,29.133,7.886,390,3388,100,91,91,258,29,2.1514,3.4623,199.34
+lanes3_density3_r122.rou,dsip,81890,200.0,450,0,15.74,29.133,7.886,390,3388,100,91,91,258,29,2.168,4.2115,203.91
