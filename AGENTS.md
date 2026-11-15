@@ -403,14 +403,19 @@ Use line plots only when showing temporal behavior is necessary.
 
 ### DSIP reconstruction scope (added 2026-11-07, binding)
 
-> **STATUS: GATES CLOSED 2026-11-15; STAGES STILL NOT STARTED.**
+> **STATUS: GATES CLOSED 2026-11-15; S0-S3 DONE (qualitative pilot only).**
 > The author issued the "start the reconstruction" instruction on 2026-11-15, asked for a
 > gate review, then decided the comparison basis: **traffic side** (option A2, recorded in
 > `docs/baselines/fairness-protocol.md` §7). The traffic-side matrix required by that
 > decision was then run — 3 nets × 5 densities × 3 seeds × {psl, none} = 90 runs, all ok,
 > 0 conflict violations (`docs/baselines/psl-traffic-matrix.md`) — so **G1–G4 are closed**.
-> **No reconstruction stage has started yet**: S0 is unlocked and must itself stop for
-> author review. Review: `docs/dsip_reconstruction/gate-review-2026-11-15.md`.
+> S0-S3 are done (`docs/dsip_reconstruction/stage0-report.md`,
+> `s1-s3-runlog.md`): the prior loads and plans, 8-agent xECBS exercises Experience
+> Reuse, and SUMO runs under reconstructed control. This is a **qualitative pilot on
+> one seed**, not an evaluation: the reconstructed plans use a disk collision model
+> (r = 1.74 m) against 5 m vehicles, so proximity/collision numbers are not usable.
+> **S4-S8 (acceleration/jerk, delay sensitivity, CBS-timeout statistics, seed sweep,
+> full matrix) have not started and each still stops for author review.**
 > Do **not** download/re-download DSIP or MMD checkpoints, rebuild the diffusion
 > inference environment, restore model weights, rewrite DSIP inference code, or
 > start any stage of the DSIP reconstruction yet.

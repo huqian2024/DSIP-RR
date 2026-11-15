@@ -1,0 +1,10 @@
+[
+  {"id": "ew", "start": [-0.8, 0.0], "goal": [0.8, 0.0], "start_time": 0},
+  {"id": "we", "start": [0.8, 0.0], "goal": [-0.8, 0.0], "start_time": 0},
+  {"id": "ns", "start": [0.0, -0.8], "goal": [0.0, 0.8], "start_time": 0},
+  {"id": "sn", "start": [0.0, 0.8], "goal": [0.0, -0.8], "start_time": 0},
+  {"id": "sw_ne", "start": [-0.8, -0.6], "goal": [0.8, 0.6], "start_time": 0},
+  {"id": "ne_sw", "start": [0.8, 0.6], "goal": [-0.8, -0.6], "start_time": 0},
+  {"id": "nw_se", "start": [-0.8, 0.6], "goal": [0.8, -0.6], "start_time": 0},
+  {"id": "se_nw", "start": [0.8, -0.6], "goal": [-0.8, 0.6], "start_time": 0}
+]

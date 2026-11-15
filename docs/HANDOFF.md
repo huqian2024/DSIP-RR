@@ -1474,3 +1474,27 @@ MMD 在 `5c2597eb…`、conda `mmd` 环境（torch 2.0.0+cu118、CUDA True、RTX
 `ema_model_current.pth` 三个 SHA256 与 `checkpoint_manifest.md` §4 完全一致；
 conda `mmd` 环境 = Python 3.8.20 + torch 2.0.0+cu118 + CUDA True + RTX 4060 8 GB。
 报告：`docs/dsip_reconstruction/stage0-report.md`。**S1 待作者确认。**
+
+### 15.14 DSIP 重建：S1–S3 当日跑通（2026-11-15）
+
+作者指令：当日必须跑通，按原文算法重建，**只做定性分析**（转向比相对效果、推理时延兜底），
+不追求绝对性能。闸门 G1–G4 已关闭，S0 已完成。
+
+**代码**（`src/dsip_reconstruction/`，上游零改动）：
+`upstream_env.py`（工作区内 sys.path + 断言）、`prior.py`（dataset shim + model/dataset 缓存）、
+`s1_single_agent.py`、`s2_multi_agent.py`、`sumo_runner.py`、`s3_run.py`、`run_compare.py`。
+
+**S1 通过**：加载 1.68 s、单次推理 0.852 s（25 步）、64/64 采样无碰、端点误差 0.011。
+**S2 通过**：8 车场景 3 次 CT 展开，走到经验复用分支（`Steps [3, -1]`），
+单次前向 0.235 s vs 全新 0.73 s（约 1/3）；最小间距 0.107 > 2r=0.10。
+**S3 通过**：SUMO 滚动重规划 + 理想位置控制；200 s × 6 run（3 个转向比 × {无控制, DSIP}）。
+
+**定性结论**（1 seed，只能定性）：
+- 转向比相对响应方向与无控制一致；1:2:2 下完成行程降幅更小（−5.9 % vs −14.3 %）。
+- 推理 p50 1.82–2.16 s，**100 % 超过 400 ms 预算**；兜底（无解/异常→交回 SUMO）生效。
+- 近距事件 13 → 449（≈35×）：先验是半径 0.05 帧单位的**圆盘**（≈1.74 m），
+  SUMO 车长 5 m，`paper_faithful` 不做矩形碰撞校验 → 绝对安全指标不可用。
+
+产物：`docs/dsip_reconstruction/s1-s3-runlog.md`、`evaluation/figures/dsip_recon/compare.csv`；
+`results/dsip_{s1,s2,s2_8,s3*,compare}/` 全部 git-ignored 可重算。
+`src/dsip_reconstruction/` 下 8 个脚本，S4–S8 未做（阶段闸门）。
