@@ -78,6 +78,37 @@ def load_cell(metrics_path, ts_path, lanes, density, control, seed,
     return row, ts
 
 
+NET_LANES = {"cross2": 2, "cross3": 3, "cross4": 4}
+
+
+def iter_cells(base, nets, args):
+    """Yield (net, lanes, density, seed, plan_summary, {control: folder}).
+
+    ``nets`` empty reproduces the original pilot layout (``exec-d1-s81890``);
+    otherwise the net-aware layout written by ``baselines/psl_sumo/
+    run_traffic_matrix.py`` (``psl-cross3-d1-s81890`` / ``plans/psl-...``).
+    """
+    dens = [int(x) for x in args.densities.split(",") if x.strip()]
+    seeds = [int(x) for x in args.seeds.split(",") if x.strip()]
+    if not nets:
+        for d in dens:
+            for s in seeds:
+                yield (None, args.lanes, d, s,
+                       base / ("psl-d%d-s%d" % (d, s)) / "summary.json",
+                       {"psl": base / ("exec-d%d-s%d" % (d, s)),
+                        "none": base / ("none-d%d-s%d" % (d, s))})
+        return
+    for net in nets:
+        lanes = NET_LANES[net]
+        for d in dens:
+            for s in seeds:
+                stem = "%s-d%d-s%d" % (net, d, s)
+                yield (net, lanes, d, s,
+                       base / "plans" / ("psl-" + stem) / "summary.json",
+                       {"psl": base / ("psl-" + stem),
+                        "none": base / ("none-" + stem)})
+
+
 def summarise(by_seed):
     groups = {}
     for r in by_seed:
@@ -141,18 +172,27 @@ def make_figures(ts_rows, out_dir, metric, ylabel, fname, title_prefix):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--run-root", default="results/psl_tr",
-                    help="root holding exec-d{D}-s{S}/ none-d{D}-s{S}/ and "
-                         "psl-d{D}-s{S}/")
+    ap.add_argument("--run-root", default=None,
+                    help="root holding the run folders; defaults to"
+                         " results/psl_traffic when --nets is given and to"
+                         " results/psl_tr (pilot layout) otherwise")
     ap.add_argument("--densities", default="1,3,5")
     ap.add_argument("--seeds", default="81890,81891,81892,81893,81894")
     ap.add_argument("--lanes", type=int, default=3)
+    ap.add_argument("--nets", default="",
+                    help="comma-separated nets (cross2,cross3,cross4); enables the"
+                         " net-aware layout written by"
+                         " baselines/psl_sumo/run_traffic_matrix.py")
+    ap.add_argument("--w", default="",
+                    help="passage speed w of the executed schedules, recorded in"
+                         " the plot manifest")
     ap.add_argument("--out-dir", default="evaluation/figures/psl_baseline")
     ap.add_argument("--figures", action="store_true",
                     help="also render the two temporal figures (needs matplotlib)")
     args = ap.parse_args(argv)
 
-    base = Path(args.run_root)
+    base = Path(args.run_root or ("results/psl_traffic"
+                                  if args.nets.strip() else "results/psl_tr"))
     if not base.is_absolute():
         base = ROOT / base
     out = Path(args.out_dir)
@@ -161,19 +201,19 @@ def main(argv=None):
     out.mkdir(parents=True, exist_ok=True)
 
     by_seed, ts_all = [], []
-    for d in [int(x) for x in args.densities.split(",") if x]:
-        for s in [int(x) for x in args.seeds.split(",") if x]:
-            plan = base / ("psl-d%d-s%d" % (d, s)) / "summary.json"
-            for control, folder in (("psl", base / ("exec-d%d-s%d" % (d, s))),
-                                    ("none", base / ("none-d%d-s%d" % (d, s)))):
-                mp = folder / "metrics.json"
-                if not mp.exists():
-                    continue
-                row, ts = load_cell(mp, folder / "timeseries.csv", args.lanes,
-                                    d, control, s,
-                                    plan if control == "psl" else None)
-                by_seed.append(row)
-                ts_all += ts
+    nets = [x.strip() for x in args.nets.split(",") if x.strip()]
+    for net, lanes, d, s, plan, folders in iter_cells(base, nets, args):
+        for control in ("psl", "none"):
+            folder = folders[control]
+            mp = folder / "metrics.json"
+            if not mp.exists():
+                continue
+            row, ts = load_cell(mp, folder / "timeseries.csv", lanes, d,
+                                control, s, plan if control == "psl" else None)
+            if net:
+                row["net"] = net
+            by_seed.append(row)
+            ts_all += ts
 
     summary = summarise(by_seed)
     with open(out / "psl_traffic_by_seed.csv", "w", newline="") as fh:
@@ -211,8 +251,9 @@ def main(argv=None):
                   "| `fig_speed.pdf/.png` | `timeseries_all.csv` | one line "
                   "per seed |", ""]
     lines += ["Data class: **NEW_BASELINE_RAW** (no historical DSIP data).",
-              "Runs: cross3 only, seeds %s, 1000 s, 0.1 s step, w=13.9."
-              % args.seeds,
+              "Runs: %s, seeds %s, 1000 s, 0.1 s step%s."
+              % ((", ".join(nets) if nets else "cross3 only"), args.seeds,
+                 (", w=%s" % args.w) if args.w else ""),
               "Figures are generated only with `--figures` (author instruction:",
               "prepare the data first).", ""]
     (out / "plot_manifest.md").write_text("\n".join(lines))

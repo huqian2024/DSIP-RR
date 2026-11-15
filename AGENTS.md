@@ -403,11 +403,14 @@ Use line plots only when showing temporal behavior is necessary.
 
 ### DSIP reconstruction scope (added 2026-11-07, binding)
 
-> **STATUS: START INSTRUCTION RECEIVED 2026-11-15; STILL NOT STARTED.**
-> The author issued the "start the reconstruction" instruction on 2026-11-15 and asked for a
-> gate review first. The review (`docs/dsip_reconstruction/gate-review-2026-11-15.md`) shows
-> **G4 met, G3 met, G1 met only if the comparison basis is the planning side, and G2 still open**.
-> **Do not start any stage until G2 is decided** (see gate-review §5 D-A).
+> **STATUS: GATES CLOSED 2026-11-15; STAGES STILL NOT STARTED.**
+> The author issued the "start the reconstruction" instruction on 2026-11-15, asked for a
+> gate review, then decided the comparison basis: **traffic side** (option A2, recorded in
+> `docs/baselines/fairness-protocol.md` §7). The traffic-side matrix required by that
+> decision was then run — 3 nets × 5 densities × 3 seeds × {psl, none} = 90 runs, all ok,
+> 0 conflict violations (`docs/baselines/psl-traffic-matrix.md`) — so **G1–G4 are closed**.
+> **No reconstruction stage has started yet**: S0 is unlocked and must itself stop for
+> author review. Review: `docs/dsip_reconstruction/gate-review-2026-11-15.md`.
 > Do **not** download/re-download DSIP or MMD checkpoints, rebuild the diffusion
 > inference environment, restore model weights, rewrite DSIP inference code, or
 > start any stage of the DSIP reconstruction yet.

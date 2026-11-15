@@ -92,3 +92,45 @@ results/new_baselines/<method>/<experiment_id>/
 - 预编译二进制（PSL 的 `AIMPBS`）若被使用，必须在 `run_manifest.json` 标注
   `binary_provenance: "upstream_prebuilt"` 并说明无法本地重编译的原因；
 - 历史 DSIP 数字只能以"历史投稿结果"引用，永不与新实验结果做配对统计检验。
+
+---
+
+## 7. 对比口径决定（2026-11-15，作者裁决，**A2：交通侧为准**）
+
+**决定**：本轮 PSL baseline 的**正式对比口径 = 交通侧**（SUMO 执行层，论文 §III-B 的四项指标），
+**不是**计划侧（completion / entry delay / rate）。计划侧数字降级为**诊断量**，不得作为对比主表。
+
+**依据**：作者在 DSIP 启动闸门复核（`docs/dsip_reconstruction/gate-review-2026-11-15.md` §5 D-A）
+中明确选择 A2，理由是：只有执行层数字才与论文的 Fig. 2–7 / Table II 口径同源。
+
+### 7.1 立刻生效的五条后果
+
+1. **G1 判 FAIL**：交通侧目前只有 cross3 × 3 密度 × 5 seeds（pilot），
+   必须扩到 **3 路网 × 5 密度 × ≥3 seeds** 才满足闸门。DSIP 重建在此之前不得启动。
+2. **计划侧数字的表述**：只能写 "planning-side diagnostic (completion fraction / entry delay)"，
+   且必须同时给出计划侧速率与需求速率的比值，不得单独引用。
+3. **交通侧数字的表述**：一律写成 **"PSL timetable + stop-and-go execution"**，
+   并**必须同表给出 `entry_deviation_p50_s`**（pilot 实测 20.7 / 23.6 / 26.5 s @ d1/d3/d5）。
+   禁止表述为 "PSL 按计划执行"。
+4. **三方法对比的前提**：FCFS 与 `DSIP-Reconstructed` 也必须给出**交通侧**数字，
+   才能进同一张图/表。`DSIP-Reconstructed` 必须声明所用执行模式
+   （`paper_faithful` 或 `dynamics_aware`，见 `AGENTS.md`），且不得与 PSL 的停走执行口径混谈。
+5. **对照必须同源**：`--control none` 的无控制参考与 PSL 用**同 net / 同 rou / 同 seed**，
+   `--mingap-factor 0.5`（= minGap 3.0 × 0.5 = 1.5 m），10 s 采样。
+
+### 7.2 已知弱点（写进论文时必须披露，不得省略）
+
+- 进入偏差 p50 达 20–30 s ⇒ 时刻表**不可精确执行**；PSL 的"协调效果"体现在
+  **近距交互减半**（near-miss 106–110.8 → 48.2–54.6），而**不是**吞吐提升。
+- per-vehicle TimeLoss 反而上升（10.1–10.2 → 14.4–15.0 s，+42%），必须如实报告。
+- 不得据此声称 "PSL 劣于 DSIP"：两者冲突模型不同、无配对重跑。
+
+### 7.3 扩批范围（本裁决的直接产物）
+
+| 维度 | 范围 |
+|---|---|
+| 路网 | `cross2` / `cross3` / `cross4` |
+| 密度 | d1–d5 |
+| seeds | `81890 / 81891 / 81892`（与计划矩阵同 seed 集） |
+| 控制 | `psl` 与 `none` 各一遍 ⇒ **45 + 45 = 90 run** |
+| 计划来源 | 复用 `results/psl_matrix/runs/psl-*`（已 450/450，`w=13.9`），不重新求解 |

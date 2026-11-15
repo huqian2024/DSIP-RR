@@ -1,5 +1,13 @@
 # PSL 的 SUMO 执行结果（E1 层，2026-11-14）
 
+> ⚠️ **本文的 §7 pilot 数字已被取代（2026-11-15）。**
+> 作者裁决对比口径 = **交通侧**后，用统一口径（矩阵 demand + `w = 7`）重跑了
+> 3 路网 × 5 密度 × 3 seeds × {psl, none} = 90 run。正式数字与结论见
+> `docs/baselines/psl-traffic-matrix.md`；本文保留作**方法学与限制的推导记录**
+> （E1 实现、进入偏差机理、动力学匹配为何是净亏），其 §7 表格不再作为可报告结果。
+> 取代理由：pilot 的 demand 版本与 450-run 矩阵不一致
+> （3165 辆共同车中 2284 辆 `in_time` 差异 >1 s）。
+
 - 状态：**E1 已实现并跑通；结论是"计划表不可按停走方式执行"**
 - 代码：`baselines/psl_sumo/execute_plan.py`
 - 产物：`results/psl_exec/`（6 个 run，git-ignored，可完全再生）

@@ -1441,3 +1441,29 @@ MMD 在 `5c2597eb…`、conda `mmd` 环境（torch 2.0.0+cu118、CUDA True、RTX
 
 ⇒ **一句话裁决 G2 后即可执行 S0**（S0 不跑仿真，只复核与清理）。
 详见 `docs/dsip_reconstruction/gate-review-2026-11-15.md`。
+
+### 15.13 闸门关闭：口径定为交通侧 + 交通侧矩阵跑完（2026-11-15）
+
+作者裁决 **A2：PSL 对比口径 = 交通侧**（`fairness-protocol.md` §7）。
+后果：G1 判 FAIL，必须先补交通侧；当日补完。
+
+**新增代码**：`baselines/psl_sumo/run_traffic_matrix.py`（可续跑驱动，
+计划→校验→执行 psl→执行 none，逐 cell 记录）；
+`evaluation/psl_baseline_report.py` 增加 `--nets` 网感布局与 `--w`（旧 pilot 布局仍可用）。
+
+**关键判断：执行层 `w` 回到上游默认 7**。实测 `w=13.9` 的时刻表不可执行——
+进入偏差 p50 37.4/41.2/41.1 s vs 21–27 s，近距事件 71/76/103 vs 55/46/55（cross3 d1/d3/d5 s81890）。
+原因：`w=13.9` 假设匀速穿冲突区（0.72 s 占用），执行器是从静止重启。
+
+**交通侧矩阵（`docs/baselines/psl-traffic-matrix.md`）**：
+3 路网 × 5 密度 × 3 seeds × {psl, none} = **90 run，90/90 ok**，
+45/45 计划校验 ok、**0 冲突违规**（1.704e8 顶点对），约 45 min。
+主要结果（15 格方向一致）：近距交互 ≈ 减半（156→54 / 105→57 / 93→48），
+紧急制动同步减半；但逐车 timeLoss +48~53 %（cross3/4），速度 7.3→6.0 m/s，
+进入偏差 p50 22.1–29.7 s，**已插入车辆少 25–35 %**（2718→1928）。
+
+**旧 pilot（`results/psl_tr`）已被取代**：其 demand 版本与矩阵不同
+（3165 辆共同车中 2284 辆 `in_time` 差异 >1 s），不能与 450-run 矩阵当同一配置。
+
+**L1 四门全绿** → DSIP 重建 S0 已解锁（S0 不跑仿真：清理 mmd 的 `__pycache__`、
+复核 checkpoint SHA256 / MMD commit / conda `mmd` 环境）。每个 S 阶段仍须停。
