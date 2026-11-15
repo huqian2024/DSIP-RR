@@ -39,10 +39,18 @@ def main(argv=None):
     ap.add_argument("--epoch", type=float, default=2.0)
     ap.add_argument("--commit-window", type=float, default=0.0)
     ap.add_argument("--max-agents", type=int, default=6)
-    ap.add_argument("--replan-active", action="store_true",
-                    help="include vehicles that are already executing a plan in"
-                         " every batch, so cross-epoch interactions are"
-                         " coordinated instead of being fixed at commit time")
+    # Coordinating the vehicles already inside the box is the correct behaviour:
+    # without it a new arrival is planned with no knowledge of who is still there,
+    # and every cross-epoch interaction is uncoordinated (measured 449 vs 125
+    # proximity events, 87 vs 6 rectangle overlaps).  It is therefore the default;
+    # --no-replan-active reproduces the earlier, defective runs.
+    ap.add_argument("--replan-active", dest="replan_active",
+                    action="store_true", default=True,
+                    help="include vehicles already executing a plan in every"
+                         " batch (default)")
+    ap.add_argument("--no-replan-active", dest="replan_active",
+                    action="store_false",
+                    help="reproduce the pre-fix behaviour for comparison")
     ap.add_argument("--time-scale", type=float, default=1.0,
                     help="global time dilation of every committed plan:"
                          " arc profile is replayed at t/lambda, which divides the"

@@ -1,0 +1,78 @@
+{
+  "stage": "S4",
+  "mode": "dynamics_aware (post-hoc validation; coordinator unchanged)",
+  "run": "results/dsip_ra_r122",
+  "n_plans": 215,
+  "n_pairs_checked": 1081,
+  "n_pairs_with_rectangle_overlap": 3,
+  "fraction_pairs_with_overlap": 0.0028,
+  "rect_overlap_steps_total": 30,
+  "vehicle_geometry_m": {
+    "length": 5.0,
+    "width": 1.8
+  },
+  "execution_time_scale": 1.0,
+  "kinematics_smoothing": "centred 9-sample moving average of arc length (0.70 s) before finite differences",
+  "kinematics": {
+    "v_max": {
+      "p50": 2.538,
+      "p95": 10.771,
+      "max": 14.392
+    },
+    "a_abs_p50": {
+      "p50": 0.892,
+      "p95": 2.439,
+      "max": 3.605
+    },
+    "a_abs_p95": {
+      "p50": 2.734,
+      "p95": 8.369,
+      "max": 13.22
+    },
+    "a_abs_max": {
+      "p50": 3.472,
+      "p95": 10.323,
+      "max": 14.516
+    },
+    "j_abs_p50": {
+      "p50": 13.128,
+      "p95": 45.487,
+      "max": 64.139
+    },
+    "j_abs_p95": {
+      "p50": 38.374,
+      "p95": 113.848,
+      "max": 151.645
+    },
+    "j_abs_max": {
+      "p50": 49.257,
+      "p95": 143.812,
+      "max": 226.646
+    }
+  },
+  "planner_declared_mode": "paper_faithful",
+  "sumo_proximity_events_lt1p5m": 60,
+  "overlaps_head": [
+    {
+      "a": "flow_ew.0",
+      "b": "flow_ew.1",
+      "n_steps": 10,
+      "first_abs_t": 10.1,
+      "duration_s": 1.0
+    },
+    {
+      "a": "flow_es.7",
+      "b": "flow_ns.16",
+      "n_steps": 10,
+      "first_abs_t": 78.1,
+      "duration_s": 1.0
+    },
+    {
+      "a": "flow_es.12",
+      "b": "flow_es.13",
+      "n_steps": 10,
+      "first_abs_t": 118.1,
+      "duration_s": 1.0
+    }
+  ]
+}

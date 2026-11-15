@@ -1,0 +1,99 @@
+{
+  "stage": "S4",
+  "mode": "dynamics_aware (post-hoc validation; coordinator unchanged)",
+  "run": "results/dsip_ra_r111",
+  "n_plans": 204,
+  "n_pairs_checked": 903,
+  "n_pairs_with_rectangle_overlap": 6,
+  "fraction_pairs_with_overlap": 0.0066,
+  "rect_overlap_steps_total": 93,
+  "vehicle_geometry_m": {
+    "length": 5.0,
+    "width": 1.8
+  },
+  "execution_time_scale": 1.0,
+  "kinematics_smoothing": "centred 9-sample moving average of arc length (0.70 s) before finite differences",
+  "kinematics": {
+    "v_max": {
+      "p50": 1.982,
+      "p95": 9.74,
+      "max": 14.32
+    },
+    "a_abs_p50": {
+      "p50": 0.849,
+      "p95": 2.295,
+      "max": 2.864
+    },
+    "a_abs_p95": {
+      "p50": 2.519,
+      "p95": 7.801,
+      "max": 13.575
+    },
+    "a_abs_max": {
+      "p50": 3.203,
+      "p95": 9.532,
+      "max": 16.368
+    },
+    "j_abs_p50": {
+      "p50": 13.334,
+      "p95": 37.247,
+      "max": 59.785
+    },
+    "j_abs_p95": {
+      "p50": 38.574,
+      "p95": 98.914,
+      "max": 129.803
+    },
+    "j_abs_max": {
+      "p50": 51.133,
+      "p95": 138.102,
+      "max": 226.646
+    }
+  },
+  "planner_declared_mode": "paper_faithful",
+  "sumo_proximity_events_lt1p5m": 78,
+  "overlaps_head": [
+    {
+      "a": "flow_en.2",
+      "b": "flow_en.5",
+      "n_steps": 10,
+      "first_abs_t": 30.1,
+      "duration_s": 1.0
+    },
+    {
+      "a": "flow_es.4",
+      "b": "flow_es.7",
+      "n_steps": 10,
+      "first_abs_t": 44.1,
+      "duration_s": 1.0
+    },
+    {
+      "a": "flow_en.26",
+      "b": "flow_en.27",
+      "n_steps": 24,
+      "first_abs_t": 118.7,
+      "duration_s": 2.4
+    },
+    {
+      "a": "flow_en.25",
+      "b": "flow_en.29",
+      "n_steps": 10,
+      "first_abs_t": 134.1,
+      "duration_s": 1.0
+    },
+    {
+      "a": "flow_es.27",
+      "b": "flow_es.30",
+      "n_steps": 29,
+      "first_abs_t": 142.2,
+      "duration_s": 2.9
+    },
+    {
+      "a": "flow_en.34",
+      "b": "flow_en.36",
+      "n_steps": 10,
+      "first_abs_t": 162.1,
+      "duration_s": 1.0
+    }
+  ]
+}
