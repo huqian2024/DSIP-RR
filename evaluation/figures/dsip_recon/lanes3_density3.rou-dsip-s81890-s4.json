@@ -11,6 +11,7 @@
     "length": 5.0,
     "width": 1.8
   },
+  "execution_time_scale": 1.0,
   "kinematics_smoothing": "centred 9-sample moving average of arc length (0.70 s) before finite differences",
   "kinematics": {
     "v_max": {

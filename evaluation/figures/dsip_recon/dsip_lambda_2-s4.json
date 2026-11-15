@@ -1,0 +1,197 @@
+{
+  "stage": "S4",
+  "mode": "dynamics_aware (post-hoc validation; coordinator unchanged)",
+  "run": "results/dsip_lambda_2",
+  "n_plans": 228,
+  "n_pairs_checked": 25878,
+  "n_pairs_with_rectangle_overlap": 228,
+  "fraction_pairs_with_overlap": 0.0088,
+  "rect_overlap_steps_total": 3974,
+  "vehicle_geometry_m": {
+    "length": 5.0,
+    "width": 1.8
+  },
+  "execution_time_scale": 2.0,
+  "kinematics_smoothing": "centred 9-sample moving average of arc length (0.70 s) before finite differences",
+  "kinematics": {
+    "v_max": {
+      "p50": 5.401,
+      "p95": 7.403,
+      "max": 7.881
+    },
+    "a_abs_p50": {
+      "p50": 0.343,
+      "p95": 0.651,
+      "max": 0.812
+    },
+    "a_abs_p95": {
+      "p50": 1.78,
+      "p95": 2.958,
+      "max": 3.439
+    },
+    "a_abs_max": {
+      "p50": 2.462,
+      "p95": 3.689,
+      "max": 4.891
+    },
+    "j_abs_p50": {
+      "p50": 2.471,
+      "p95": 5.446,
+      "max": 7.138
+    },
+    "j_abs_p95": {
+      "p50": 10.176,
+      "p95": 17.243,
+      "max": 21.239
+    },
+    "j_abs_max": {
+      "p50": 17.979,
+      "p95": 28.02,
+      "max": 29.27
+    }
+  },
+  "planner_declared_mode": "paper_faithful",
+  "sumo_proximity_events_lt1p5m": 640,
+  "overlaps_head": [
+    {
+      "a": "flow_ew.0",
+      "b": "flow_ne.0",
+      "n_steps": 1,
+      "first_abs_t": 3.3,
+      "duration_s": 0.1
+    },
+    {
+      "a": "flow_nw.0",
+      "b": "flow_sw.0",
+      "n_steps": 42,
+      "first_abs_t": 5.8,
+      "duration_s": 4.2
+    },
+    {
+      "a": "flow_nw.0",
+      "b": "flow_ew.3",
+      "n_steps": 22,
+      "first_abs_t": 4.0,
+      "duration_s": 2.2
+    },
+    {
+      "a": "flow_ns.2",
+      "b": "flow_sw.0",
+      "n_steps": 8,
+      "first_abs_t": 8.0,
+      "duration_s": 0.8
+    },
+    {
+      "a": "flow_ns.2",
+      "b": "flow_ew.3",
+      "n_steps": 9,
+      "first_abs_t": 7.0,
+      "duration_s": 0.9
+    },
+    {
+      "a": "flow_sw.0",
+      "b": "flow_es.1",
+      "n_steps": 11,
+      "first_abs_t": 6.2,
+      "duration_s": 1.1
+    },
+    {
+      "a": "flow_ew.3",
+      "b": "flow_ne.1",
+      "n_steps": 2,
+      "first_abs_t": 9.4,
+      "duration_s": 0.2
+    },
+    {
+      "a": "flow_se.1",
+      "b": "flow_ne.1",
+      "n_steps": 34,
+      "first_abs_t": 10.6,
+      "duration_s": 3.4
+    },
+    {
+      "a": "flow_ew.4",
+      "b": "flow_ew.2",
+      "n_steps": 43,
+      "first_abs_t": 8.1,
+      "duration_s": 4.3
+    },
+    {
+      "a": "flow_ew.4",
+      "b": "flow_sn.0",
+      "n_steps": 6,
+      "first_abs_t": 10.1,
+      "duration_s": 0.6
+    },
+    {
+      "a": "flow_ew.4",
+      "b": "flow_sn.4",
+      "n_steps": 1,
+      "first_abs_t": 9.4,
+      "duration_s": 0.1
+    },
+    {
+      "a": "flow_ns.0",
+      "b": "flow_es.0",
+      "n_steps": 1,
+      "first_abs_t": 10.5,
+      "duration_s": 0.1
+    },
+    {
+      "a": "flow_ew.2",
+      "b": "flow_sn.0",
+      "n_steps": 2,
+      "first_abs_t": 14.1,
+      "duration_s": 0.2
+    },
+    {
+      "a": "flow_ew.2",
+      "b": "flow_sn.4",
+      "n_steps": 3,
+      "first_abs_t": 13.2,
+      "duration_s": 0.3
+    },
+    {
+      "a": "flow_se.0",
+      "b": "flow_sn.0",
+      "n_steps": 23,
+      "first_abs_t": 10.1,
+      "duration_s": 2.3
+    },
+    {
+      "a": "flow_se.0",
+      "b": "flow_sn.4",
+      "n_steps": 6,
+      "first_abs_t": 10.1,
+      "duration_s": 0.6
+    },
+    {
+      "a": "flow_sn.0",
+      "b": "flow_es.0",
+      "n_steps": 5,
+      "first_abs_t": 12.5,
+      "duration_s": 0.5
+    },
+    {
+      "a": "flow_es.0",
+      "b": "flow_sn.4",
+      "n_steps": 8,
+      "first_abs_t": 15.4,
+      "duration_s": 0.8
+    },
+    {
+      "a": "flow_nw.1",
+      "b": "flow_ew.5",
+      "n_steps": 52,
+      "first_abs_t": 14.8,
+      "duration_s": 5.2
+    },
+    {
+      "a": "flow_we.1",
+      "b": "flow_sn.2",
+      "n_steps": 11,
+      "first_abs_t": 13.4,
+      "duration_s": 1.1
+    }
+  ]
+}

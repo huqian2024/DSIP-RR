@@ -1,0 +1,99 @@
+{
+  "stage": "S4",
+  "mode": "dynamics_aware (post-hoc validation; coordinator unchanged)",
+  "run": "results/dsip_replan_active",
+  "n_plans": 228,
+  "n_pairs_checked": 1378,
+  "n_pairs_with_rectangle_overlap": 6,
+  "fraction_pairs_with_overlap": 0.0044,
+  "rect_overlap_steps_total": 89,
+  "vehicle_geometry_m": {
+    "length": 5.0,
+    "width": 1.8
+  },
+  "execution_time_scale": 1.0,
+  "kinematics_smoothing": "centred 9-sample moving average of arc length (0.70 s) before finite differences",
+  "kinematics": {
+    "v_max": {
+      "p50": 2.803,
+      "p95": 11.191,
+      "max": 14.776
+    },
+    "a_abs_p50": {
+      "p50": 0.97,
+      "p95": 2.447,
+      "max": 4.068
+    },
+    "a_abs_p95": {
+      "p50": 3.131,
+      "p95": 8.82,
+      "max": 12.345
+    },
+    "a_abs_max": {
+      "p50": 3.962,
+      "p95": 10.889,
+      "max": 14.621
+    },
+    "j_abs_p50": {
+      "p50": 14.078,
+      "p95": 44.042,
+      "max": 73.243
+    },
+    "j_abs_p95": {
+      "p50": 41.698,
+      "p95": 116.984,
+      "max": 149.979
+    },
+    "j_abs_max": {
+      "p50": 55.222,
+      "p95": 156.947,
+      "max": 226.646
+    }
+  },
+  "planner_declared_mode": "paper_faithful",
+  "sumo_proximity_events_lt1p5m": 125,
+  "overlaps_head": [
+    {
+      "a": "flow_ew.0",
+      "b": "flow_ew.2",
+      "n_steps": 12,
+      "first_abs_t": 11.9,
+      "duration_s": 1.2
+    },
+    {
+      "a": "flow_en.3",
+      "b": "flow_en.6",
+      "n_steps": 30,
+      "first_abs_t": 42.1,
+      "duration_s": 3.0
+    },
+    {
+      "a": "flow_en.9",
+      "b": "flow_en.12",
+      "n_steps": 13,
+      "first_abs_t": 67.8,
+      "duration_s": 1.3
+    },
+    {
+      "a": "flow_en.13",
+      "b": "flow_en.14",
+      "n_steps": 10,
+      "first_abs_t": 84.1,
+      "duration_s": 1.0
+    },
+    {
+      "a": "flow_en.16",
+      "b": "flow_en.21",
+      "n_steps": 10,
+      "first_abs_t": 116.1,
+      "duration_s": 1.0
+    },
+    {
+      "a": "flow_es.30",
+      "b": "flow_es.31",
+      "n_steps": 14,
+      "first_abs_t": 197.7,
+      "duration_s": 1.4
+    }
+  ]
+}

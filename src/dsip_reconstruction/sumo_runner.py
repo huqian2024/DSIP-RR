@@ -341,7 +341,7 @@ class DSIPRunner:
             if veh in self.released or veh not in tc.vehicle.getIDList():
                 self.plans.pop(veh, None)
                 continue
-            k = int((now - plan["t0"]) / PLAN_DT)
+            k = int((now - plan["t0"]) / (PLAN_DT * self.args.time_scale))
             if k < 0:
                 continue
             if k >= len(plan["s"]):
@@ -406,8 +406,11 @@ def run(args):
             runner.apply_plans(traci)
             if now + 1e-9 >= next_plan_t:
                 next_plan_t = now + args.epoch
-                group = [g for g in runner.candidates(traci)
-                         if g[0] not in runner.plans][:args.max_agents]
+                cand = runner.candidates(traci)
+                if not args.replan_active:
+                    # Default: only vehicles that are not already executing a plan.
+                    cand = [g for g in cand if g[0] not in runner.plans]
+                group = cand[:args.max_agents]
                 if group:
                     kept, paths, wall, info = runner.plan_group(
                         traci, group, planners_factory)
@@ -451,6 +454,8 @@ def run(args):
         "end_s": args.end,
         "sim_time_reached_s": round(sim_reached, 2),
         "epoch_s": args.epoch,
+        "time_scale": args.time_scale,
+        "replan_active": bool(args.replan_active),
         "commit_window_m": args.commit_window,
         "max_agents": args.max_agents,
         "budget_s": args.budget,

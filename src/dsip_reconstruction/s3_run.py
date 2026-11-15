@@ -39,6 +39,15 @@ def main(argv=None):
     ap.add_argument("--epoch", type=float, default=2.0)
     ap.add_argument("--commit-window", type=float, default=0.0)
     ap.add_argument("--max-agents", type=int, default=6)
+    ap.add_argument("--replan-active", action="store_true",
+                    help="include vehicles that are already executing a plan in"
+                         " every batch, so cross-epoch interactions are"
+                         " coordinated instead of being fixed at commit time")
+    ap.add_argument("--time-scale", type=float, default=1.0,
+                    help="global time dilation of every committed plan:"
+                         " arc profile is replayed at t/lambda, which divides the"
+                         " commanded acceleration by lambda^2 while preserving"
+                         " the relative order of all vehicles")
     ap.add_argument("--road-speed", type=float, default=13.9,
                     help="m/s used to scale the planning box: one frame unit is"
                          " 0.5 * road_speed * 5 s (the prior's fixed horizon)")

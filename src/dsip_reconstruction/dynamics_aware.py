@@ -38,6 +38,7 @@ sys.path.insert(0, str(ROOT))
 from src.dsip_reconstruction.sumo_runner import (        # noqa: E402
     PLAN_DT, cumulative, point_at)
 
+TIME_SCALE = 1.0       # execution time dilation (--time-scale of the runner)
 SMOOTH = 9              # samples in the moving-average window
 VEH_LENGTH = 5.0
 VEH_WIDTH = 1.8
@@ -66,7 +67,7 @@ def plan_samples(plan):
     pts = [(p[0], p[1]) for p in plan["pts"]]
     cum = cumulative(pts)
     total = cum[-1]
-    ts = [k * PLAN_DT for k in range(len(plan["s"]))]
+    ts = [k * PLAN_DT * TIME_SCALE for k in range(len(plan["s"]))]
     arcs = [s * plan["L"] for s in plan["s"]]
     out = []
     t = 0.0
@@ -90,6 +91,7 @@ def kin(plan):
     dropped so the plan's own start/stop edges do not masquerade as accelerations.
     """
     arcs = [s * plan["L"] for s in plan["s"]]
+    dt_eff = PLAN_DT * TIME_SCALE
     # The sampler's 64 support points are not perfectly evenly spaced, so raw
     # second differences are dominated by point noise.  A centred 5-sample moving
     # average (0.39 s) is applied before differencing; the same window is used for
@@ -99,7 +101,7 @@ def kin(plan):
     arcs = [sum(arcs[max(0, i - half):min(len(arcs), i + half + 1)])
             / len(arcs[max(0, i - half):min(len(arcs), i + half + 1)])
             for i in range(len(arcs))]
-    dt = PLAN_DT
+    dt = dt_eff
     v = [(arcs[i + 1] - arcs[i]) / dt for i in range(len(arcs) - 1)]
     a = [(v[i + 1] - v[i]) / dt for i in range(len(v) - 1)]
     j = [(a[i + 1] - a[i]) / dt for i in range(len(a) - 1)]
@@ -149,18 +151,22 @@ def rects_overlap(a, b):
 
 
 def main(argv=None):
-    global VEH_LENGTH, VEH_WIDTH, SMOOTH
+    global VEH_LENGTH, VEH_WIDTH, SMOOTH, TIME_SCALE
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--run", required=True,
                     help="a DSIP run directory containing s3_plans.json")
     ap.add_argument("--out", default="results/dsip_s4")
     ap.add_argument("--length", type=float, default=VEH_LENGTH)
     ap.add_argument("--width", type=float, default=VEH_WIDTH)
+    ap.add_argument("--time-scale", type=float, default=1.0,
+                    help="must match the runner's --time-scale: the plan is"
+                         " replayed over 5*lambda seconds")
     ap.add_argument("--smooth", type=int, default=SMOOTH,
                     help="moving-average window, in plan samples (PLAN_DT=0.078 s)")
     args = ap.parse_args(argv)
 
-    VEH_LENGTH, VEH_WIDTH, SMOOTH = args.length, args.width, args.smooth
+    VEH_LENGTH, VEH_WIDTH = args.length, args.width
+    SMOOTH, TIME_SCALE = args.smooth, args.time_scale
 
     run = Path(args.run)
     run = run if run.is_absolute() else ROOT / run
@@ -223,6 +229,7 @@ def main(argv=None):
                                         if checked_pairs else None),
         "rect_overlap_steps_total": sum(o["n_steps"] for o in overlaps),
         "vehicle_geometry_m": {"length": VEH_LENGTH, "width": VEH_WIDTH},
+        "execution_time_scale": TIME_SCALE,
         "kinematics_smoothing": ("centred %d-sample moving average of arc length"
                                  " (%.2f s) before finite differences"
                                  % (SMOOTH, SMOOTH * PLAN_DT)),
