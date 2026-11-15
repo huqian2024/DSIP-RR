@@ -1526,3 +1526,14 @@ conda `mmd` 环境 = Python 3.8.20 + torch 2.0.0+cu118 + CUDA True + RTX 4060 8 
 - 口径修正：报告里的加速度列是**逐计划峰值**的跨计划分位数，列名已改为 `peak_a_p50` 等。
 新增：`evaluation/dsip_recon_report.py`（汇总全部变体）、`evaluation/figures/dsip_recon/dsip_recon_variants.csv`。
 `--replan-active` 现为**默认**（`--no-replan-active` 可复现旧缺陷）。
+
+**转向比敏感性 3-seed 结果（收尾）**：`s4b-replan-active.md` §4。
+修正默认配置（协调开、λ=1）、cross3/density3、seeds 81890/81891/81892、200 s，18 run 全完成。
+- **同臂内相对变化，3 seeds 符号一致**：
+  1:1:1 → ΔTL 无控制 **+13.1 %** vs DSIP **−10.2 %**；
+  1:2:2 → ΔTL 无控制 −4.7 % vs DSIP −25.6 %，Δtrips 无控制 **−13.8 %** vs DSIP **−5.4 %**。
+- **结论**：通行能力上 DSIP 更稳（1:2:2 掉得少 2.6 倍）；时耗的响应方向与无控制臂相反。
+  "相对效果变差"不成立，但"跟随无控制臂"也不成立 → 论文应写"响应不同构"。
+- 边界：1 路网 / 1 密度 / 200 s / λ=1（峰值加速度 3.2–4.0，略超车限）。近距绝对数不可用。
+- 数据：`evaluation/figures/dsip_recon/turning_ratio_{by_seed,relative}.csv`；
+  脚本 `evaluation/dsip_turning_ratio.py`、`evaluation/dsip_recon_report.py`。

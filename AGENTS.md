@@ -414,7 +414,9 @@ Use line plots only when showing temporal behavior is necessary.
 > Reuse, and SUMO runs under reconstructed control. This is a **qualitative pilot on
 > one seed**, not an evaluation: the reconstructed plans use a disk collision model
 > (r = 1.74 m) against 5 m vehicles, so proximity/collision numbers are not usable.
-> **S4-S8 (acceleration/jerk, delay sensitivity, CBS-timeout statistics, seed sweep,
+> **S4/S4b/S4c are done** (dynamics-aware validation, time-dilation and cross-epoch
+> coordination experiments, 3-seed turning-ratio sweep: `s4b-replan-active.md`).
+> **S5-S8 (delay sensitivity, CBS-timeout statistics, seed sweep over densities,
 > full matrix) have not started and each still stops for author review.**
 > Do **not** download/re-download DSIP or MMD checkpoints, rebuild the diffusion
 > inference environment, restore model weights, rewrite DSIP inference code, or
